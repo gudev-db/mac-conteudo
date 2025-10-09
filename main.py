@@ -33,7 +33,6 @@ users = {
 
 def login():
     """Formulário de login"""
-    st.title("Macfor Conteúdo - Login")
     
     with st.form("login_form"):
         username = st.text_input("Usuário")
@@ -296,6 +295,7 @@ if st.sidebar.button("🚪 Sair", key="logout_btn"):
 
 # Seletor de Agente na parte superior (acima das abas)
 st.image('macLogo.png', width=300)
+st.title("Conteúdo")
 st.header("🤖 Seletor de Agente")
 
 # Inicializar estado da sessão para agente selecionado
@@ -379,7 +379,6 @@ if st.session_state.agente_selecionado:
     else:
         st.sidebar.warning("⚠️ Nenhum segmento selecionado")
 
-st.title("Macfor - Conteúdo")
 st.text("")
 st.text("Para navegar pelas abas, clique em uma e pressione as setas para a esquerda ou direita em seu teclado")
 st.text("")
