@@ -353,7 +353,7 @@ if st.session_state.agente_selecionado:
 st.title("Macfor - Conteúdo")
 
 # Menu de abas - ADICIONANDO A NOVA ABA DE PIPELINE
-tab_pipeline, tab_chat, tab_gerenciamento, tab_briefing, tab_conteudo, tab_blog, tab_revisao_ortografica, tab_revisao_tecnica, tab_briefing_tecnico, tab_otimizacao = st.tabs([
+tab_gerenciamento, tab_chat, tab_pipeline,  tab_briefing, tab_conteudo, tab_blog, tab_revisao_ortografica, tab_revisao_tecnica, tab_otimizacao = st.tabs([
     "🚀 Pipeline Completo",
     "💬 Chat", 
     "⚙️ Gerenciar Agentes",
