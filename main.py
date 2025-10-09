@@ -11,7 +11,6 @@ import json
 import hashlib
 from google.genai import types
 import uuid
-from datetime import datetime
 
 # Configuração inicial
 st.set_page_config(
@@ -91,7 +90,6 @@ def criar_agente(nome, system_prompt, base_conhecimento, comments, planejamento,
         "categoria": categoria,
         "agente_mae_id": agente_mae_id,
         "herdar_elementos": herdar_elementos or [],
-        "data_criacao": datetime.datetime.now(),
         "ativo": True
     }
     result = collection_agentes.insert_one(agente)
@@ -133,7 +131,6 @@ def atualizar_agente(agente_id, nome, system_prompt, base_conhecimento, comments
                 "categoria": categoria,
                 "agente_mae_id": agente_mae_id,
                 "herdar_elementos": herdar_elementos or [],
-                "data_atualizacao": datetime.datetime.now()
             }
         }
     )
@@ -144,7 +141,6 @@ def desativar_agente(agente_id):
         agente_id = ObjectId(agente_id)
     return collection_agentes.update_one(
         {"_id": agente_id},
-        {"$set": {"ativo": False, "data_desativacao": datetime.datetime.now()}}
     )
 
 def obter_agente_com_heranca(agente_id):
@@ -180,7 +176,6 @@ def salvar_conversa(agente_id, mensagens, segmentos_utilizados=None):
         "agente_id": agente_id,
         "mensagens": mensagens,
         "segmentos_utilizados": segmentos_utilizados,
-        "data_criacao": datetime.datetime.now()
     }
     return collection_conversas.insert_one(conversa)
 
@@ -740,7 +735,7 @@ with tab_pipeline:
                 st.download_button(
                     "💾 Baixar Conteúdo Final",
                     data=st.session_state.pipeline_revisado,
-                    file_name=f"conteudo_final_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                    file_name=f"conteudo_final",
                     mime="text/plain",
                     use_container_width=True
                 )
@@ -1484,7 +1479,6 @@ with tab_briefing:
                             "categoria": categoria,
                             "nome_projeto": campos_briefing['basicos']['nome_projeto'],
                             "responsavel": campos_briefing['basicos']['responsavel'],
-                            "data_criacao": datetime.datetime.now(),
                             "data_entrega": campos_briefing['basicos']['data_entrega'],
                             "conteudo": resposta.text,
                             "campos_preenchidos": campos_briefing,
@@ -1639,7 +1633,7 @@ with tab_conteudo:
                     st.download_button(
                         "💾 Baixar Conteúdo",
                         data=resposta.text,
-                        file_name=f"conteudo_gerado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                        file_name=f"conteudo_gerado.txt",
                         mime="text/plain"
                     )
                     
@@ -1685,7 +1679,6 @@ with tab_blog:
                 "meta_title": meta_title,
                 "meta_descricao": meta_descricao,
                 "linha_fina": linha_fina,
-                "data_criacao": datetime.now(),
                 "versao": "2.0"
             }
             collection_posts.insert_one(documento)
@@ -1706,7 +1699,6 @@ with tab_blog:
             documento = {
                 "id": str(uuid.uuid4()),
                 "briefing": briefing_data,
-                "data_criacao": datetime.now()
             }
             collection_briefings.insert_one(documento)
             return True
@@ -2017,7 +2009,7 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                     titulo_blog if 'titulo_blog' in locals() else "Título gerado",
                     cultura if 'cultura' in locals() else "Cultura não especificada",
                     editoria if 'editoria' in locals() else "Editoria geral",
-                    mes_publicacao if 'mes_publicacao' in locals() else datetime.now().strftime("%m/%Y"),
+                    mes_publicacao if 'mes_publicacao' in locals() ,
                     objetivo_post if 'objetivo_post' in locals() else "Objetivo não especificado",
                     url if 'url' in locals() else "/",
                     texto_gerado,
@@ -2038,7 +2030,7 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                 st.download_button(
                     "💾 Baixar Post",
                     data=texto_gerado,
-                    file_name=f"blog_post_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                    file_name=f"blog_post_.txt",
                     mime="text/plain"
                 )
                 
