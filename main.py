@@ -2009,7 +2009,6 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                     titulo_blog if 'titulo_blog' in locals() else "Título gerado",
                     cultura if 'cultura' in locals() else "Cultura não especificada",
                     editoria if 'editoria' in locals() else "Editoria geral",
-                    mes_publicacao if 'mes_publicacao' in locals() ,
                     objetivo_post if 'objetivo_post' in locals() else "Objetivo não especificado",
                     url if 'url' in locals() else "/",
                     texto_gerado,
