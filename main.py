@@ -381,7 +381,7 @@ if st.session_state.agente_selecionado:
 st.title("Macfor - Conteúdo")
 
 # Menu de abas
-tab_pipeline, tab_chat, tab_gerenciamento, tab_briefing, tab_conteudo, tab_blog, tab_revisao_ortografica, tab_revisao_tecnica, tab_briefing_tecnico, tab_otimizacao = st.tabs([
+tab_pipeline, tab_chat, tab_gerenciamento, tab_briefing, tab_conteudo, tab_blog, tab_revisao_ortografica, tab_revisao_tecnica, tab_otimizacao = st.tabs([
     "🚀 Pipeline Completo",
     "💬 Chat", 
     "⚙️ Gerenciar Agentes",
@@ -390,7 +390,6 @@ tab_pipeline, tab_chat, tab_gerenciamento, tab_briefing, tab_conteudo, tab_blog,
     "🌱 Geração de Conteúdo Blog",
     "📝 Revisão Ortográfica",
     "🔧 Revisão Técnica",
-    "⚙️ Geração de Briefing Técnico",
     "🚀 Otimização de Conteúdo"
 ])
 
@@ -1719,7 +1718,6 @@ with tab_blog:
                 "meta_title": meta_title,
                 "meta_descricao": meta_descricao,
                 "linha_fina": linha_fina,
-                "data_criacao": datetime.datetime.now(),
                 "versao": "2.0"
             }
             collection_posts.insert_one(documento)
@@ -1740,7 +1738,6 @@ with tab_blog:
             documento = {
                 "id": str(uuid.uuid4()),
                 "briefing": briefing_data,
-                "data_criacao": datetime.datetime.now()
             }
             collection_briefings.insert_one(documento)
             return True
@@ -2087,7 +2084,7 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
     posts_anteriores = carregar_posts_anteriores()
     if posts_anteriores:
         for post in posts_anteriores:
-            with st.expander(f"{post.get('titulo', 'Sem título')} - {post.get('data_criacao', '').strftime('%d/%m/%Y')}"):
+            with st.expander(f"{post.get('titulo', 'Sem título')}"):
                 st.write(f"**Cultura:** {post.get('cultura', 'N/A')}")
                 st.write(f"**Palavras:** {post.get('palavras_contagem', 'N/A')}")
                 
@@ -2167,8 +2164,7 @@ with tab_revisao_tecnica:
     st.header("🔧 Revisão Técnica")
     
     texto_tecnico = st.text_area("Cole o conteúdo técnico para revisão:", height=300)
-    area_tecnica = st.selectbox("Área Técnica:", 
-                               ["Agricultura", "Tecnologia", "Engenharia", "Medicina", "Outra"])
+
     
     if st.button("🔍 Realizar Revisão Técnica", type="primary"):
         if texto_tecnico:
@@ -2179,14 +2175,16 @@ with tab_revisao_tecnica:
                         agente = st.session_state.agente_selecionado
                         contexto = construir_contexto(agente, st.session_state.segmentos_selecionados)
                         prompt = f"""
+                        ###BEGIN CONTEXTO###
                         {contexto}
+                        ###END CONTEXTO###
                         
-                        Faça uma revisão técnica especializada em {area_tecnica} do seguinte conteúdo:
+                        Faça uma revisão técnica do seguinte conteúdo:
                         
                         {texto_tecnico}
                         
                         Verifique:
-                        1. Precisão técnica das informações
+                        1. Precisão técnica das informações de acordo com o contexto
                         2. Consistência de terminologia
                         3. Clareza nas explicações
                         4. Atualização das referências
@@ -2215,17 +2213,6 @@ with tab_revisao_tecnica:
         else:
             st.warning("Por favor, cole um conteúdo técnico para revisão.")
 
-# ========== ABA: BRIEFING TÉCNICO ==========
-with tab_briefing_tecnico:
-    st.header("⚙️ Geração de Briefing Técnico")
-    
-    st.info("Em desenvolvimento - Briefings Técnicos Especializados")
-    
-    tipo_briefing_tecnico = st.selectbox("Tipo de Briefing Técnico:", 
-                                       ["Documentação Técnica", "Manual de Produto", "Especificações", "Procedimentos"])
-    
-    st.text_area("Descreva os requisitos técnicos:", height=200,
-                placeholder="Descreva os objetivos, requisitos técnicos, especificações, etc...")
 
 # ========== ABA: OTIMIZAÇÃO DE CONTEÚDO ==========
 with tab_otimizacao:
