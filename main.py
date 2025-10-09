@@ -16,9 +16,7 @@ from datetime import datetime
 # Configuração inicial
 st.set_page_config(
     layout="wide",
-    page_title="Agente Generativo",
-    page_icon="🤖"
-)
+    page_title="Conteúdo")
 
 # --- Sistema de Autenticação ---
 def make_hashes(password):
@@ -36,7 +34,7 @@ users = {
 
 def login():
     """Formulário de login"""
-    st.title("🔒 Agente Generativo - Login")
+    st.title("Macfor Conteúdo - Login")
     
     with st.form("login_form"):
         username = st.text_input("Usuário")
