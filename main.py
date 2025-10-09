@@ -73,11 +73,6 @@ genai.configure(api_key=gemini_api_key)
 modelo_vision = genai.GenerativeModel("gemini-2.5-flash", generation_config={"temperature": 0.1})
 modelo_texto = genai.GenerativeModel("gemini-2.5-flash")
 
-# Configuração da API do Perplexity
-perp_api_key = os.getenv("PERP_API_KEY")
-if not perp_api_key:
-    st.error("PERP_API_KEY não encontrada nas variáveis de ambiente")
-
 # --- Funções CRUD para Agentes ---
 def criar_agente(nome, system_prompt, base_conhecimento, comments, planejamento, categoria, agente_mae_id=None, herdar_elementos=None):
     """Cria um novo agente no MongoDB"""
@@ -90,7 +85,8 @@ def criar_agente(nome, system_prompt, base_conhecimento, comments, planejamento,
         "categoria": categoria,
         "agente_mae_id": agente_mae_id,
         "herdar_elementos": herdar_elementos or [],
-        "ativo": True
+        "ativo": True,
+        "data_criacao": datetime.datetime.now()
     }
     result = collection_agentes.insert_one(agente)
     return result.inserted_id
@@ -141,6 +137,7 @@ def desativar_agente(agente_id):
         agente_id = ObjectId(agente_id)
     return collection_agentes.update_one(
         {"_id": agente_id},
+        {"$set": {"ativo": False}}
     )
 
 def obter_agente_com_heranca(agente_id):
@@ -176,6 +173,7 @@ def salvar_conversa(agente_id, mensagens, segmentos_utilizados=None):
         "agente_id": agente_id,
         "mensagens": mensagens,
         "segmentos_utilizados": segmentos_utilizados,
+        "data_criacao": datetime.datetime.now()
     }
     return collection_conversas.insert_one(conversa)
 
@@ -214,6 +212,41 @@ def construir_contexto(agente, segmentos_selecionados, historico_mensagens=None)
     contexto += "### RESPOSTA ATUAL ###\nassistant:"
     
     return contexto
+
+# --- Funções para Transcrição de Áudio/Video ---
+def transcrever_audio_video(arquivo, tipo_arquivo):
+    """Transcreve áudio ou vídeo usando a API do Gemini"""
+    try:
+        client = genai.Client(api_key=gemini_api_key)
+        
+        if tipo_arquivo == "audio":
+            mime_type = f"audio/{arquivo.name.split('.')[-1]}"
+        else:  # video
+            mime_type = f"video/{arquivo.name.split('.')[-1]}"
+        
+        # Lê os bytes do arquivo
+        arquivo_bytes = arquivo.read()
+        
+        # Para arquivos maiores, usa upload
+        if len(arquivo_bytes) > 20 * 1024 * 1024:  # 20MB
+            uploaded_file = client.files.upload(file=arquivo_bytes, mime_type=mime_type)
+            response = client.models.generate_content(
+                model="gemini-2.5-flash", 
+                contents=["Transcreva este arquivo em detalhes:", uploaded_file]
+            )
+        else:
+            # Para arquivos menores, usa inline
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[
+                    "Transcreva este arquivo em detalhes:",
+                    types.Part.from_bytes(data=arquivo_bytes, mime_type=mime_type)
+                ]
+            )
+        
+        return response.text
+    except Exception as e:
+        return f"Erro na transcrição: {str(e)}"
 
 # --- Configuração de Autenticação de Administrador ---
 def check_admin_password():
@@ -347,7 +380,7 @@ if st.session_state.agente_selecionado:
 
 st.title("Macfor - Conteúdo")
 
-# Menu de abas - ADICIONANDO A NOVA ABA DE PIPELINE
+# Menu de abas
 tab_pipeline, tab_chat, tab_gerenciamento, tab_briefing, tab_conteudo, tab_blog, tab_revisao_ortografica, tab_revisao_tecnica, tab_briefing_tecnico, tab_otimizacao = st.tabs([
     "🚀 Pipeline Completo",
     "💬 Chat", 
@@ -590,7 +623,7 @@ with tab_pipeline:
             if st.form_submit_button("🔧 Otimizar Conteúdo", use_container_width=True):
                 with st.spinner("Otimizando conteúdo com foco agro..."):
                     try:
-                        # PROMPT DE OTIMIZAÇÃO AGRO (conforme solicitado)
+                        # PROMPT DE OTIMIZAÇÃO AGRO COM SEO KIT
                         prompt_otimizacao = f"""
                         SUA PERSONALIDADE: Você é um agrônomo sênior (15+ anos de campo) e estrategista de SEO/Conteúdo para o agro no Brasil (pt-BR). Você une profundidade técnica (cultivos, manejo, sustentabilidade, produtividade) com marketing de conteúdo e SEO avançado para posicionar marcas do agronegócio no topo do Google.  
                         
@@ -696,7 +729,13 @@ with tab_pipeline:
             if st.form_submit_button("🔍 Realizar Revisão Final", use_container_width=True):
                 with st.spinner("Realizando revisão completa..."):
                     try:
+                        # Construir prompt de revisão considerando o agente selecionado
+                        agente = st.session_state.agente_selecionado
+                        contexto_agente = construir_contexto(agente, st.session_state.segmentos_selecionados)
+                        
                         prompt_revisao = f"""
+                        {contexto_agente}
+                        
                         Realize uma revisão {tipo_revisao.lower()} {rigor_revisao.lower()} do seguinte conteúdo:
                         
                         {st.session_state.pipeline_otimizado}
@@ -735,7 +774,7 @@ with tab_pipeline:
                 st.download_button(
                     "💾 Baixar Conteúdo Final",
                     data=st.session_state.pipeline_revisado,
-                    file_name=f"conteudo_final",
+                    file_name=f"conteudo_final_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.txt",
                     mime="text/plain",
                     use_container_width=True
                 )
@@ -1460,7 +1499,7 @@ with tab_briefing:
                         "## 1. INFORMAÇÕES BÁSICAS",
                         f"**Objetivo Geral:** {campos_briefing['basicos']['objetivo_geral']}",
                         "",
-                        "## 2. INFORMAÇões ESPECÍFICAS"
+                        "## 2. INFORMAÇÕES ESPECÍFICAS"
                     ]
                     
                     # Adicionar campos específicos
@@ -1483,6 +1522,7 @@ with tab_briefing:
                             "conteudo": resposta.text,
                             "campos_preenchidos": campos_briefing,
                             "observacoes": obs,
+                            "data_criacao": datetime.datetime.now()
                         }
                         collection_briefings.insert_one(briefing_data)
 
@@ -1679,6 +1719,7 @@ with tab_blog:
                 "meta_title": meta_title,
                 "meta_descricao": meta_descricao,
                 "linha_fina": linha_fina,
+                "data_criacao": datetime.datetime.now(),
                 "versao": "2.0"
             }
             collection_posts.insert_one(documento)
@@ -1699,6 +1740,7 @@ with tab_blog:
             documento = {
                 "id": str(uuid.uuid4()),
                 "briefing": briefing_data,
+                "data_criacao": datetime.datetime.now()
             }
             collection_briefings.insert_one(documento)
             return True
@@ -1712,17 +1754,6 @@ with tab_blog:
             except:
                 return []
         return []
-
-    # Função para processar transcrições
-    def processar_transcricoes(arquivos):
-        transcricoes = []
-        for arquivo in arquivos:
-            if arquivo is not None:
-                # Simulação de processamento de transcrição
-                # Em produção, integrar com API de transcrição
-                st.info(f"Processando transcrição de: {arquivo.name}")
-                transcricoes.append(f"Conteúdo transcrito de {arquivo.name}")
-        return "\n\n".join(transcricoes)
 
     # Regras base do sistema - ATUALIZADAS
     regras_base = '''
@@ -1913,6 +1944,16 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
             arquivos_midia = st.file_uploader("Áudios/Vídeos para Transcrição (múltiplos)", 
                                             type=['mp3', 'wav', 'mp4', 'mov'], 
                                             accept_multiple_files=True)
+            
+            if arquivos_midia:
+                st.info(f"{len(arquivos_midia)} arquivo(s) de mídia carregado(s)")
+                if st.button("🎬 Transcrever Mídia"):
+                    with st.spinner("Transcrevendo arquivos de mídia..."):
+                        for arquivo in arquivos_midia:
+                            tipo = "audio" if arquivo.type.startswith('audio') else "video"
+                            transcricao = transcrever_audio_video(arquivo, tipo)
+                            st.write(f"**Transcrição de {arquivo.name}:**")
+                            st.write(transcricao)
 
     # Metadados para SEO
     st.header("🔍 Metadados para SEO")
@@ -1944,7 +1985,10 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                 # Processar transcrições se houver arquivos
                 transcricoes_texto = ""
                 if 'arquivos_midia' in locals() and arquivos_midia:
-                    transcricoes_texto = processar_transcricoes(arquivos_midia)
+                    for arquivo in arquivos_midia:
+                        tipo = "audio" if arquivo.type.startswith('audio') else "video"
+                        transcricao = transcrever_audio_video(arquivo, tipo)
+                        transcricoes_texto += f"\n\n--- TRANSCRIÇÃO DE {arquivo.name} ---\n{transcricao}"
                     st.info(f"Processadas {len(arquivos_midia)} transcrição(ões)")
                 
                 # Construir prompt personalizado - MAIS RESTRITIVO
@@ -2009,6 +2053,7 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                     titulo_blog if 'titulo_blog' in locals() else "Título gerado",
                     cultura if 'cultura' in locals() else "Cultura não especificada",
                     editoria if 'editoria' in locals() else "Editoria geral",
+                    mes_publicacao if 'mes_publicacao' in locals() else datetime.datetime.now().strftime("%m/%Y"),
                     objetivo_post if 'objetivo_post' in locals() else "Objetivo não especificado",
                     url if 'url' in locals() else "/",
                     texto_gerado,
@@ -2029,22 +2074,20 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                 st.download_button(
                     "💾 Baixar Post",
                     data=texto_gerado,
-                    file_name=f"blog_post_.txt",
+                    file_name=f"blog_post_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.txt",
                     mime="text/plain"
                 )
                 
             except Exception as e:
                 st.error(f"Erro na geração: {str(e)}")
 
-    # Banco de textos gerados - CORRIGIDO: usando container em vez de expander
+    # Banco de textos gerados
     st.header("📚 Banco de Textos Gerados")
     
     posts_anteriores = carregar_posts_anteriores()
     if posts_anteriores:
         for post in posts_anteriores:
-            # Usando container em vez de expander para evitar o problema de aninhamento
-            with st.container():
-                st.write(f"**{post.get('titulo', 'Sem título')} - {post.get('data_criacao', '').strftime('%d/%m/%Y')}**")
+            with st.expander(f"{post.get('titulo', 'Sem título')} - {post.get('data_criacao', '').strftime('%d/%m/%Y')}"):
                 st.write(f"**Cultura:** {post.get('cultura', 'N/A')}")
                 st.write(f"**Palavras:** {post.get('palavras_contagem', 'N/A')}")
                 
@@ -2069,7 +2112,6 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                         mime="text/plain",
                         key=f"dl_btn_{post['id']}"
                     )
-                st.divider()
     else:
         st.info("Nenhum post encontrado no banco de dados.")
 
@@ -2083,16 +2125,33 @@ with tab_revisao_ortografica:
         if texto_para_revisao:
             with st.spinner("Revisando texto..."):
                 try:
-                    prompt = f"""
-                    Faça uma revisão ortográfica e gramatical completa do seguinte texto:
-                    
-                    {texto_para_revisao}
-                    
-                    Forneça:
-                    1. Texto revisado com correções aplicadas
-                    2. Lista de correções realizadas
-                    3. Sugestões de melhorias de estilo
-                    """
+                    # Usar contexto do agente selecionado se disponível
+                    if st.session_state.agente_selecionado:
+                        agente = st.session_state.agente_selecionado
+                        contexto = construir_contexto(agente, st.session_state.segmentos_selecionados)
+                        prompt = f"""
+                        {contexto}
+                        
+                        Faça uma revisão ortográfica e gramatical completa do seguinte texto:
+                        
+                        {texto_para_revisao}
+                        
+                        Forneça:
+                        1. Texto revisado com correções aplicadas
+                        2. Lista de correções realizadas
+                        3. Sugestões de melhorias de estilo
+                        """
+                    else:
+                        prompt = f"""
+                        Faça uma revisão ortográfica e gramatical completa do seguinte texto:
+                        
+                        {texto_para_revisao}
+                        
+                        Forneça:
+                        1. Texto revisado com correções aplicadas
+                        2. Lista de correções realizadas
+                        3. Sugestões de melhorias de estilo
+                        """
                     
                     resposta = modelo_texto.generate_content(prompt)
                     st.subheader("📋 Resultado da Revisão")
@@ -2115,18 +2174,37 @@ with tab_revisao_tecnica:
         if texto_tecnico:
             with st.spinner("Realizando revisão técnica..."):
                 try:
-                    prompt = f"""
-                    Faça uma revisão técnica especializada em {area_tecnica} do seguinte conteúdo:
-                    
-                    {texto_tecnico}
-                    
-                    Verifique:
-                    1. Precisão técnica das informações
-                    2. Consistência de terminologia
-                    3. Clareza nas explicações
-                    4. Atualização das referências
-                    5. Sugestões de melhorias técnicas
-                    """
+                    # Usar contexto do agente selecionado se disponível
+                    if st.session_state.agente_selecionado:
+                        agente = st.session_state.agente_selecionado
+                        contexto = construir_contexto(agente, st.session_state.segmentos_selecionados)
+                        prompt = f"""
+                        {contexto}
+                        
+                        Faça uma revisão técnica especializada em {area_tecnica} do seguinte conteúdo:
+                        
+                        {texto_tecnico}
+                        
+                        Verifique:
+                        1. Precisão técnica das informações
+                        2. Consistência de terminologia
+                        3. Clareza nas explicações
+                        4. Atualização das referências
+                        5. Sugestões de melhorias técnicas
+                        """
+                    else:
+                        prompt = f"""
+                        Faça uma revisão técnica especializada em {area_tecnica} do seguinte conteúdo:
+                        
+                        {texto_tecnico}
+                        
+                        Verifique:
+                        1. Precisão técnica das informações
+                        2. Consistência de terminologia
+                        3. Clareza nas explicações
+                        4. Atualização das referências
+                        5. Sugestões de melhorias técnicas
+                        """
                     
                     resposta = modelo_texto.generate_content(prompt)
                     st.subheader("📋 Resultado da Revisão Técnica")
@@ -2141,8 +2219,6 @@ with tab_revisao_tecnica:
 with tab_briefing_tecnico:
     st.header("⚙️ Geração de Briefing Técnico")
     
-    # Esta aba pode ser implementada de forma similar à aba de briefing geral
-    # mas com foco em briefings técnicos específicos
     st.info("Em desenvolvimento - Briefings Técnicos Especializados")
     
     tipo_briefing_tecnico = st.selectbox("Tipo de Briefing Técnico:", 
@@ -2156,23 +2232,94 @@ with tab_otimizacao:
     st.header("🚀 Otimização de Conteúdo")
     
     texto_para_otimizar = st.text_area("Cole o conteúdo para otimização:", height=300)
-    tipo_otimizacao = st.selectbox("Tipo de Otimização:", 
-                                  ["SEO", "Engajamento", "Conversão", "Clareza"])
+    
+    col_opt1, col_opt2 = st.columns(2)
+    
+    with col_opt1:
+        tipo_otimizacao = st.selectbox("Tipo de Otimização:", 
+                                      ["SEO", "Engajamento", "Conversão", "Clareza"])
+        
+        # Configurações específicas para SEO
+        if tipo_otimizacao == "SEO":
+            palavras_chave_seo = st.text_input("Palavras-chave para SEO:")
+            incluir_metatags = st.checkbox("Incluir Meta Tags", value=True)
+            otimizar_estrutura = st.checkbox("Otimizar Estrutura", value=True)
+    
+    with col_opt2:
+        nivel_agro = st.selectbox("Nível Técnico Agrícola:", 
+                                ["Básico", "Intermediário", "Avançado"])
+        
+        rigor_otimizacao = st.select_slider("Rigor da Otimização:", 
+                                          ["Leve", "Moderado", "Rigoroso"])
     
     if st.button("🚀 Otimizar Conteúdo", type="primary"):
         if texto_para_otimizar:
             with st.spinner("Otimizando conteúdo..."):
                 try:
-                    prompt = f"""
-                    Otimize o seguinte conteúdo para {tipo_otimizacao}:
-                    
-                    {texto_para_otimizar}
-                    
-                    Forneça:
-                    1. Versão otimizada do conteúdo
-                    2. Explicação das otimizações realizadas
-                    3. Métricas esperadas de melhoria
-                    """
+                    # PROMPT DE OTIMIZAÇÃO COM SEO KIT
+                    if tipo_otimizacao == "SEO":
+                        prompt = f"""
+                        SUA PERSONALIDADE: Você é um agrônomo sênior (15+ anos de campo) e estrategista de SEO/Conteúdo para o agro no Brasil (pt-BR). Você une profundidade técnica (cultivos, manejo, sustentabilidade, produtividade) com marketing de conteúdo e SEO avançado para posicionar marcas do agronegócio no topo do Google.  
+                        
+                        Objetivo macro: Otimizar o conteúdo enviado com base em "SEO Kit" profissional, maximizando tráfego orgânico qualificado, autoridade temática e conversões. 
+                        
+                        SEO KIT: 
+                        - Português brasileiro, tecnicamente embasado, acessível e humano. 
+                        - Subtítulo a cada ~200 palavras; cada subtítulo com 8–12 linhas. 
+                        - Parágrafos curtos (máx. 3 frases, 1 ideia central). 
+                        - Negrito apenas em conceitos-chave; itálico para citações/termos estrangeiros/disclaimers. 
+                        - Evite jargão excessivo; defina termos técnicos quando surgirem. 
+                        - Inclua exemplos práticos de campo, mini estudos de caso COM FONTES e orientações acionáveis. 
+                        - Trate sazonalidade e regionalização (biomas/zonas climáticas do Brasil) quando pertinente. 
+                        - E-E-A-T: deixar claras a experiência prática, fontes confiáveis e originalidade. Sem conteúdo genérico. 
+                        
+                        Redação especializada e escaneável (atualize o ARTIGO) 
+                        - Introdução curta e impactante com promessa clara e CTA inicial. 
+                        - Em cada seção: explique porquê/como/quando com FONTES (condições agronômicas, clima, solo, fenologia). 
+                        - Traga dados e referências (ensaios, boletins técnicos, normas) com links confiáveis. 
+                        - Sinalize pontos ideais para imagens/gráficos (ex.: curva de produtividade vs. adubação; diagnóstico de praga; tabela de híbridos). 
+                        - Inclua tabelas quando houver comparativos (dose/época/manejo; custo/benefício). 
+                        - Use mini-casos do campo (antes/depois, ganho em sc/ha, ROI estimado). 
+                        - Conclusão forte com CTA (ex.: Baixe, Aplique, Fale com um especialista). 
+                        
+                        CONFIGURAÇÕES ATUAIS:
+                        - Foco da otimização: {tipo_otimizacao}
+                        - Nível técnico: {nivel_agro}
+                        - Palavras-chave: {palavras_chave_seo if 'palavras_chave_seo' in locals() else 'Não especificadas'}
+                        - Rigor: {rigor_otimizacao}
+                        
+                        CONTEÚDO A SER OTIMIZADO:
+                        {texto_para_otimizar}
+                        
+                        AO FINAL DO ARTIGO OTIMIZADO: 
+                        1) On-page SEO completo (entregar junto com o artigo) 
+                        - Title tag (≤60 caracteres) com KW1 no início. 
+                        - Meta description (≤155 caracteres) com benefício + CTA. 
+                        - H1 distinto do Title, natural e com KW1. 
+                        - URL slug curto, descritivo, com KW1 (sem stopwords desnecessárias). 
+                        
+                        2) Conformidade e segurança (YMYL leve no agro) 
+                        - Adicionar disclaimer quando envolver segurança de alimentos, aplicações químicas, legislações ou recomendações com receituário agronômico. 
+                        - Reforçar boas práticas, EPIs e cumprimento de rótulo/legislação vigente. 
+                        
+                        Retorne o conteúdo otimizado seguindo EXATAMENTE estas instruções.
+                        """
+                    else:
+                        prompt = f"""
+                        Otimize o seguinte conteúdo para {tipo_otimizacao}:
+                        
+                        {texto_para_otimizar}
+                        
+                        CONFIGURAÇÕES:
+                        - Tipo de otimização: {tipo_otimizacao}
+                        - Nível técnico: {nivel_agro}
+                        - Rigor: {rigor_otimizacao}
+                        
+                        Forneça:
+                        1. Versão otimizada do conteúdo
+                        2. Explicação das otimizações realizadas
+                        3. Métricas esperadas de melhoria
+                        """
                     
                     resposta = modelo_texto.generate_content(prompt)
                     st.subheader("📊 Conteúdo Otimizado")
