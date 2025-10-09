@@ -1294,7 +1294,7 @@ with tab_blog:
         mongo_connected_blog = False
 
     # Funções para o banco de dados
-    def salvar_post(titulo, cultura, editoria, mes_publicacao, objetivo_post, url, texto_gerado, palavras_chave, palavras_proibidas, tom_voz, estrutura, palavras_contagem, meta_title, meta_descricao, linha_fina):
+    def salvar_post(titulo, cultura, editoria, mes_publicacao, objetivo_post, url, texto_gerado, palavras_chave, palavras_proibidas, tom_voz, estrutura, palavras_contagem, meta_title, meta_descricao, linha_fina, links_internos=None):
         if mongo_connected_blog:
             documento = {
                 "id": str(uuid.uuid4()),
@@ -1313,6 +1313,7 @@ with tab_blog:
                 "meta_title": meta_title,
                 "meta_descricao": meta_descricao,
                 "linha_fina": linha_fina,
+                "links_internos": links_internos or [],
                 "versao": "2.0"
             }
             collection_posts.insert_one(documento)
@@ -1510,6 +1511,31 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                 salvar_briefing(briefing_texto)
                 st.success("Briefing salvo no banco de dados!")
 
+    # NOVO CAMPO: LINKS INTERNOS
+    st.header("🔗 Links Internos")
+    st.info("Adicione links internos que serão automaticamente inseridos no corpo do texto como âncoras")
+    
+    links_internos = []
+    num_links = st.number_input("Número de links internos a adicionar:", min_value=0, max_value=10, value=0)
+    
+    for i in range(num_links):
+        col_link1, col_link2 = st.columns([3, 1])
+        with col_link1:
+            texto_ancora = st.text_input(f"Texto âncora {i+1}:", placeholder="Ex: manejo integrado de pragas")
+            url_link = st.text_input(f"URL do link {i+1}:", placeholder="Ex: /blog/manejo-integrado-pragas")
+        with col_link2:
+            posicao = st.selectbox(f"Posição {i+1}:", ["Automática", "Introdução", "Problema", "Solução", "Conclusão"])
+        
+        if texto_ancora and url_link:
+            links_internos.append({
+                "texto_ancora": texto_ancora,
+                "url": url_link,
+                "posicao": posicao
+            })
+    
+    if links_internos:
+        st.success(f"✅ {len(links_internos)} link(s) interno(s) configurado(s)")
+
     # Configurações avançadas
     with st.expander("⚙️ Configurações Avançadas"):
         col_av1, col_av2 = st.columns(2)
@@ -1592,6 +1618,15 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                     numero_palavras=numero_palavras
                 )
                 
+                # Adicionar instruções sobre links internos se houver
+                instrucoes_links = ""
+                if links_internos:
+                    instrucoes_links = "\n\n**INSTRUÇÕES PARA LINKS INTERNOS:**\n"
+                    instrucoes_links += "INSIRA os seguintes links internos DENTRO do texto, como âncoras naturais:\n"
+                    for link in links_internos:
+                        instrucoes_links += f"- [{link['texto_ancora']}]({link['url']}) - Posição: {link['posicao']}\n"
+                    instrucoes_links += "\n**IMPORTANTE:** Insira os links de forma natural no contexto, sem forçar. Use como referência para criar âncoras relevantes."
+                
                 prompt_final = f"""
                 **INSTRUÇÕES PARA CRIAÇÃO DE BLOG POST AGRÍCOLA:**
                 
@@ -1602,6 +1637,8 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                 - Cultura: {cultura if 'cultura' in locals() else 'A definir'}
                 - Palavra-chave Principal: {palavra_chave_principal}
                 - Palavras-chave Secundárias: {palavras_chave_secundarias}
+                
+                {instrucoes_links}
                 
                 **METADADOS:**
                 - Meta Title: {meta_title}
@@ -1620,6 +1657,7 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                 - Use APENAS dados fornecidos no briefing
                 - Cite fontes específicas no corpo do texto
                 - Mantenha parágrafos e listas CURTOS
+                - INSIRA OS LINKS INTERNOS de forma natural no texto
                 
                 **CONTEÚDO DE TRANSCRIÇÕES:**
                 {transcricoes_texto if transcricoes_texto else 'Nenhuma transcrição fornecida'}
@@ -1656,7 +1694,8 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                     palavras_count,
                     meta_title,
                     meta_descricao,
-                    linha_fina
+                    linha_fina,
+                    links_internos
                 ):
                     st.success("✅ Post gerado e salvo no banco de dados!")
                 
@@ -1688,6 +1727,12 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                     st.write(f"**Meta Title:** {post.get('meta_title')}")
                 if post.get('meta_descricao'):
                     st.write(f"**Meta Descrição:** {post.get('meta_descricao')}")
+                
+                # Mostrar links internos se existirem
+                if post.get('links_internos'):
+                    st.write("**Links Internos:**")
+                    for link in post['links_internos']:
+                        st.write(f"- [{link.get('texto_ancora', 'N/A')}]({link.get('url', '#')})")
                 
                 st.text_area("Conteúdo:", value=post.get('texto_gerado', ''), height=200, key=post['id'])
                 
