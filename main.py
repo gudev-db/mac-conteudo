@@ -379,6 +379,9 @@ if st.session_state.agente_selecionado:
         st.sidebar.warning("⚠️ Nenhum segmento selecionado")
 
 st.title("Macfor - Conteúdo")
+st.text("")
+st.text("Para navegar pelas abas, clique em uma e pressione as setas para a esquerda ou direita em seu teclado")
+st.text("")
 
 # Menu de abas
 tab_pipeline, tab_chat, tab_gerenciamento, tab_briefing, tab_conteudo, tab_blog, tab_revisao_ortografica, tab_revisao_tecnica, tab_otimizacao = st.tabs([
