@@ -379,6 +379,7 @@ if st.session_state.agente_selecionado:
         st.sidebar.warning("⚠️ Nenhum segmento selecionado")
 
 st.title("Macfor - Conteúdo")
+st.image('macLogo.png', width=300)
 st.text("")
 st.text("Para navegar pelas abas, clique em uma e pressione as setas para a esquerda ou direita em seu teclado")
 st.text("")
