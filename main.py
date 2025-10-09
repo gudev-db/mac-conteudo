@@ -1085,7 +1085,7 @@ with tab_briefing:
                     
                     # Construir o prompt com todas as informações coletadas
                     prompt_parts = [
-                        f"# BRIEFING {tipo_briefing.upper()} - Broto",
+                        f"# BRIEFING {tipo_briefing.upper()}",
                         f"**Projeto:** {campos_briefing['basicos']['nome_projeto']}",
                         f"**Responsável:** {campos_briefing['basicos']['responsavel']}",
                         f"**Data de Entrega:** {campos_briefing['basicos']['data_entrega']}",
@@ -1725,24 +1725,21 @@ with tab_revisao_ortografica:
                         {contexto}
                         
                         Faça uma revisão ortográfica e gramatical completa do seguinte texto:
-                        
+                        ###BEGIN TEXTO A SER REVISADO###
                         {texto_para_revisao}
+                        ###END TEXTO A SER REVISADO###
                         
-                        Forneça:
-                        1. Texto revisado com correções aplicadas
-                        2. Lista de correções realizadas
-                        3. Sugestões de melhorias de estilo
+                        Saída esperada: Conteúdo completo e revisado.
                         """
                     else:
                         prompt = f"""
                         Faça uma revisão ortográfica e gramatical completa do seguinte texto:
                         
+                        ###BEGIN TEXTO A SER REVISADO###
                         {texto_para_revisao}
+                        ###END TEXTO A SER REVISADO###
                         
-                        Forneça:
-                        1. Texto revisado com correções aplicadas
-                        2. Lista de correções realizadas
-                        3. Sugestões de melhorias de estilo
+                        Saída esperada: Conteúdo completo e revisado.
                         """
                     
                     resposta = modelo_texto.generate_content(prompt)
@@ -1776,27 +1773,21 @@ with tab_revisao_tecnica:
                         
                         Faça uma revisão técnica do seguinte conteúdo:
                         
+                        ###BEGIN TEXTO A SER REVISADO###
                         {texto_tecnico}
+                        ###END TEXTO A SER REVISADO###
                         
-                        Verifique:
-                        1. Precisão técnica das informações de acordo com o contexto
-                        2. Consistência de terminologia
-                        3. Clareza nas explicações
-                        4. Atualização das referências
-                        5. Sugestões de melhorias técnicas
+                        Saída esperada: Conteúdo completo e revisado.
                         """
                     else:
                         prompt = f"""
                         Faça uma revisão técnica especializada em {area_tecnica} do seguinte conteúdo:
                         
+                        ###BEGIN TEXTO A SER REVISADO###
                         {texto_tecnico}
+                        ###END TEXTO A SER REVISADO###
                         
-                        Verifique:
-                        1. Precisão técnica das informações
-                        2. Consistência de terminologia
-                        3. Clareza nas explicações
-                        4. Atualização das referências
-                        5. Sugestões de melhorias técnicas
+                        Saída esperada: Conteúdo completo e revisado.
                         """
                     
                     resposta = modelo_texto.generate_content(prompt)
@@ -1870,8 +1861,9 @@ with tab_otimizacao:
                         - Palavras-chave: {palavras_chave_seo if 'palavras_chave_seo' in locals() else 'Não especificadas'}
                         - Rigor: {rigor_otimizacao}
                         
-                        CONTEÚDO A SER OTIMIZADO:
+                        ###BEGIN CONTEÚDO A SER OTIMIZADO###
                         {texto_para_otimizar}
+                        ###END CONTEÚDO A SER OTIMIZADO###
                         
                         AO FINAL DO ARTIGO OTIMIZADO: 
                         1) On-page SEO completo (entregar junto com o artigo) 
@@ -1890,7 +1882,9 @@ with tab_otimizacao:
                         prompt = f"""
                         Otimize o seguinte conteúdo para {tipo_otimizacao}:
                         
+                        ###BEGIN CONTEÚDO A SER OTIMIZADO###
                         {texto_para_otimizar}
+                        ###END CONTEÚDO A SER OTIMIZADO###
                         
                         CONFIGURAÇÕES:
                         - Tipo de otimização: {tipo_otimizacao}
