@@ -356,7 +356,7 @@ else:
 # Controles de segmentos na sidebar
 if st.session_state.agente_selecionado:
     st.sidebar.subheader("🔧 Configurações do Agente")
-    st.sidebar.write("Selecione quais bases de conhecimento usar:")
+    st.sidebar.write("Selecione quais bases de conhecimento devem estar ativas durante o uso do agente selecionado:")
     
     segmentos_disponiveis = {
         "Prompt do Sistema": "system_prompt",
