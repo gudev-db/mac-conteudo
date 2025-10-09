@@ -266,7 +266,7 @@ if st.sidebar.button("🚪 Sair", key="logout_btn"):
             del st.session_state[key]
     st.rerun()
 
-st.title("🤖 Agente Generativo Personalizável")
+st.title("Macfor - Conteúdo")
 
 # Menu de abas
 tab_chat, tab_gerenciamento, tab_briefing, tab_conteudo, tab_blog, tab_revisao_ortografica, tab_revisao_tecnica, tab_briefing_tecnico, tab_otimizacao = st.tabs([
