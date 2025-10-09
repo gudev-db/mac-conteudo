@@ -880,7 +880,7 @@ with tab_gerenciamento:
                             )
                             agente_mae_id = agente_mae_options[agente_mae_selecionado]
                             
-                            st.subheader("Elementos para Herdar"
+                            st.subheader("Elementos para Herdar")
                             herdar_elementos = st.multiselect(
                                 "Selecione os elementos a herdar do agente mãe:",
                                 ["system_prompt", "base_conhecimento", "comments", "planejamento"],
