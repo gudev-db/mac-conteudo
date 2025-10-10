@@ -464,11 +464,10 @@ def check_admin_password():
         # Senha correta
         return True
 
-# --- SELEÇÃO DE AGENTE NA PARTE SUPERIOR ---
-st.sidebar.title(f"🤖 Bem-vindo, {st.session_state.user}!")
+
 
 # Botão de logout na sidebar
-if st.sidebar.button("🚪 Sair", key="logout_btn"):
+if st.button("🚪 Sair", key="logout_btn"):
     for key in ["logged_in", "user", "admin_password_correct", "admin_user"]:
         if key in st.session_state:
             del st.session_state[key]
