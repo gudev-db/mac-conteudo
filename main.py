@@ -876,7 +876,7 @@ with tab_briefing:
     # Conexão com MongoDB para briefings
     try:
         client2 = MongoClient("mongodb+srv://gustavoromao3345:RqWFPNOJQfInAW1N@cluster0.5iilj.mongodb.net/auto_doc?retryWrites=true&w=majority&ssl=true&ssl_cert_reqs=CERT_NONE&tlsAllowInvalidCertificates=true")
-        db_briefings = client2['briefings_Broto_Tecnologia']
+        db_briefings = client2['briefings_Tecnologia']
         collection_briefings = db_briefings['briefings']
         mongo_connected = True
     except Exception as e:
@@ -1368,7 +1368,7 @@ with tab_briefing:
 
 # ========== ABA: GERAÇÃO DE CONTEÚDO ==========
 with tab_conteudo:
-    st.header("✨ Geração de Conteúdo")
+    st.header("✨ Geração de Conteúdo com Múltiplos Insumos")
     
     # Conexão com MongoDB para briefings
     try:
@@ -1379,14 +1379,118 @@ with tab_conteudo:
     except Exception as e:
         st.error(f"Erro na conexão com MongoDB: {str(e)}")
         mongo_connected_conteudo = False
-    
+
+    # Função para extrair texto de diferentes tipos de arquivo
+    def extrair_texto_arquivo(arquivo):
+        """Extrai texto de diferentes formatos de arquivo"""
+        try:
+            extensao = arquivo.name.split('.')[-1].lower()
+            
+            if extensao == 'pdf':
+                return extrair_texto_pdf(arquivo)
+            elif extensao == 'txt':
+                return extrair_texto_txt(arquivo)
+            elif extensao in ['pptx', 'ppt']:
+                return extrair_texto_pptx(arquivo)
+            elif extensao in ['docx', 'doc']:
+                return extrair_texto_docx(arquivo)
+            else:
+                return f"Formato {extensao} não suportado para extração de texto."
+                
+        except Exception as e:
+            return f"Erro ao extrair texto do arquivo {arquivo.name}: {str(e)}"
+
+    def extrair_texto_pdf(arquivo):
+        """Extrai texto de arquivos PDF"""
+        try:
+            import PyPDF2
+            pdf_reader = PyPDF2.PdfReader(arquivo)
+            texto = ""
+            for pagina in pdf_reader.pages:
+                texto += pagina.extract_text() + "\n"
+            return texto
+        except Exception as e:
+            return f"Erro na leitura do PDF: {str(e)}"
+
+    def extrair_texto_txt(arquivo):
+        """Extrai texto de arquivos TXT"""
+        try:
+            return arquivo.read().decode('utf-8')
+        except:
+            try:
+                return arquivo.read().decode('latin-1')
+            except Exception as e:
+                return f"Erro na leitura do TXT: {str(e)}"
+
+    def extrair_texto_pptx(arquivo):
+        """Extrai texto de arquivos PowerPoint"""
+        try:
+            from pptx import Presentation
+            import io
+            prs = Presentation(io.BytesIO(arquivo.read()))
+            texto = ""
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        texto += shape.text + "\n"
+            return texto
+        except Exception as e:
+            return f"Erro na leitura do PowerPoint: {str(e)}"
+
+    def extrair_texto_docx(arquivo):
+        """Extrai texto de arquivos Word"""
+        try:
+            import docx
+            import io
+            doc = docx.Document(io.BytesIO(arquivo.read()))
+            texto = ""
+            for para in doc.paragraphs:
+                texto += para.text + "\n"
+            return texto
+        except Exception as e:
+            return f"Erro na leitura do Word: {str(e)}"
+
+    # Layout principal
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.subheader("📝 Entrada do Briefing")
+        st.subheader("📝 Fontes de Conteúdo")
         
-        # Opção 1: Selecionar briefing do banco de dados
-        st.write("**Selecione um briefing salvo:**")
+        # Opção 1: Upload de múltiplos arquivos
+        st.write("**📎 Upload de Arquivos (PDF, TXT, PPTX, DOCX):**")
+        arquivos_upload = st.file_uploader(
+            "Selecione um ou mais arquivos:",
+            type=['pdf', 'txt', 'pptx', 'ppt', 'docx', 'doc'],
+            accept_multiple_files=True,
+            help="Arquivos serão convertidos para texto e usados como base para geração de conteúdo"
+        )
+        
+        # Processar arquivos uploadados
+        textos_arquivos = ""
+        if arquivos_upload:
+            st.success(f"✅ {len(arquivos_upload)} arquivo(s) carregado(s)")
+            
+            with st.expander("📋 Visualizar Conteúdo dos Arquivos", expanded=False):
+                for i, arquivo in enumerate(arquivos_upload):
+                    st.write(f"**{arquivo.name}** ({arquivo.size} bytes)")
+                    with st.spinner(f"Processando {arquivo.name}..."):
+                        texto_extraido = extrair_texto_arquivo(arquivo)
+                        textos_arquivos += f"\n\n--- CONTEÚDO DE {arquivo.name.upper()} ---\n{texto_extraido}"
+                        
+                        # Mostrar preview
+                        if len(texto_extraido) > 500:
+                            st.text_area(f"Preview - {arquivo.name}", 
+                                       value=texto_extraido[:500] + "...", 
+                                       height=100,
+                                       key=f"preview_{i}")
+                        else:
+                            st.text_area(f"Preview - {arquivo.name}", 
+                                       value=texto_extraido, 
+                                       height=100,
+                                       key=f"preview_{i}")
+        
+        # Opção 2: Selecionar briefing do banco de dados
+        st.write("**🗃️ Briefing do Banco de Dados:**")
         if mongo_connected_conteudo:
             briefings_disponiveis = list(collection_briefings.find().sort("data_criacao", -1).limit(20))
             if briefings_disponiveis:
@@ -1401,61 +1505,233 @@ with tab_conteudo:
         else:
             st.warning("Conexão com MongoDB não disponível")
         
-        # Opção 2: Inserir briefing manualmente
-        st.write("**Ou cole o briefing manualmente:**")
-        briefing_manual = st.text_area("Cole o briefing completo aqui:", height=200,
-                                      placeholder="Exemplo:\nTítulo: Campanha de Lançamento\nObjetivo: Divulgar novo produto\nPúblico-alvo: Empresários...")
+        # Opção 3: Inserir briefing manualmente
+        st.write("**✍️ Briefing Manual:**")
+        briefing_manual = st.text_area("Ou cole o briefing completo aqui:", height=150,
+                                      placeholder="""Exemplo:
+Título: Campanha de Lançamento
+Objetivo: Divulgar novo produto
+Público-alvo: Empresários...
+Pontos-chave: [lista os principais pontos]""")
+        
+        # Transcrição de áudio/vídeo
+        st.write("**🎤 Transcrição de Áudio/Video:**")
+        arquivos_midia = st.file_uploader(
+            "Áudios/Vídeos para transcrição:",
+            type=['mp3', 'wav', 'mp4', 'mov', 'avi'],
+            accept_multiple_files=True,
+            help="Arquivos de mídia serão transcritos automaticamente"
+        )
+        
+        transcricoes_texto = ""
+        if arquivos_midia:
+            st.info(f"🎬 {len(arquivos_midia)} arquivo(s) de mídia carregado(s)")
+            if st.button("🔄 Transcrever Todos os Arquivos de Mídia"):
+                with st.spinner("Transcrevendo arquivos de mídia..."):
+                    for arquivo in arquivos_midia:
+                        tipo = "audio" if arquivo.type.startswith('audio') else "video"
+                        transcricao = transcrever_audio_video(arquivo, tipo)
+                        transcricoes_texto += f"\n\n--- TRANSCRIÇÃO DE {arquivo.name.upper()} ---\n{transcricao}"
+                        st.success(f"✅ {arquivo.name} transcrito!")
     
     with col2:
         st.subheader("⚙️ Configurações")
         
         tipo_conteudo = st.selectbox("Tipo de Conteúdo:", 
-                                   ["Post Social", "Artigo Blog", "Email Marketing", "Landing Page", "Script Vídeo"])
+                                   ["Post Social", "Artigo Blog", "Email Marketing", 
+                                    "Landing Page", "Script Vídeo", "Relatório Técnico",
+                                    "Press Release", "Newsletter", "Case Study"])
         
         tom_voz = st.selectbox("Tom de Voz:", 
-                              ["Formal", "Informal", "Persuasivo", "Educativo", "Inspirador"])
+                              ["Formal", "Informal", "Persuasivo", "Educativo", 
+                               "Inspirador", "Técnico", "Jornalístico"])
         
-        palavras_chave = st.text_input("Palavras-chave (opcional):")
+        palavras_chave = st.text_input("Palavras-chave (opcional):",
+                                      placeholder="separadas por vírgula")
         
-        numero_palavras = st.slider("Número de Palavras:", 100, 2000, 500)
-    
+        numero_palavras = st.slider("Número de Palavras:", 100, 3000, 800)
+        
+        # Configurações avançadas
+        with st.expander("🔧 Configurações Avançadas"):
+            usar_contexto_agente = st.checkbox("Usar contexto do agente selecionado", 
+                                             value=bool(st.session_state.agente_selecionado))
+            
+            nivel_detalhe = st.select_slider("Nível de Detalhe:", 
+                                           ["Resumido", "Balanceado", "Detalhado", "Completo"])
+            
+            incluir_cta = st.checkbox("Incluir Call-to-Action", value=True)
+            
+            formato_saida = st.selectbox("Formato de Saída:", 
+                                       ["Texto Simples", "Markdown", "HTML Básico"])
+
+    # Área de instruções específicas
+    st.subheader("🎯 Instruções Específicas")
+    instrucoes_especificas = st.text_area(
+        "Diretrizes adicionais para geração:",
+        placeholder="""Exemplos:
+- Focar nos benefícios para o usuário final
+- Incluir estatísticas quando possível
+- Manter linguagem acessível
+- Evitar jargões técnicos excessivos
+- Seguir estrutura: problema → solução → benefícios""",
+        height=100
+    )
+
     # Botão para gerar conteúdo
-    if st.button("🚀 Gerar Conteúdo", type="primary", use_container_width=True):
-        if briefing_manual or ('briefing_data' in locals() and briefing_data):
-            with st.spinner("Gerando conteúdo personalizado..."):
+    if st.button("🚀 Gerar Conteúdo com Todos os Insumos", type="primary", use_container_width=True):
+        # Verificar se há pelo menos uma fonte de conteúdo
+        tem_conteudo = (arquivos_upload or 
+                       briefing_manual or 
+                       ('briefing_data' in locals() and briefing_data) or
+                       arquivos_midia)
+        
+        if not tem_conteudo:
+            st.error("❌ Por favor, forneça pelo menos uma fonte de conteúdo (arquivos, briefing ou mídia)")
+        else:
+            with st.spinner("Processando todos os insumos e gerando conteúdo..."):
                 try:
-                    # Usar briefing manual se fornecido, caso contrário usar briefing do banco
-                    briefing_final = briefing_manual if briefing_manual else briefing_data['conteudo']
+                    # Construir o contexto combinado de todas as fontes
+                    contexto_completo = "## FONTES DE CONTEÚDO COMBINADAS:\n\n"
                     
-                    prompt = f"""
-                    Com base no seguinte briefing:
+                    # Adicionar conteúdo dos arquivos uploadados
+                    if textos_arquivos:
+                        contexto_completo += "### CONTEÚDO DOS ARQUIVOS:\n" + textos_arquivos + "\n\n"
                     
-                    {briefing_final}
+                    # Adicionar briefing do banco ou manual
+                    if briefing_manual:
+                        contexto_completo += "### BRIEFING MANUAL:\n" + briefing_manual + "\n\n"
+                    elif 'briefing_data' in locals() and briefing_data:
+                        contexto_completo += "### BRIEFING DO BANCO:\n" + briefing_data['conteudo'] + "\n\n"
                     
-                    Gere um conteúdo do tipo {tipo_conteudo} com as seguintes características:
-                    - Tom de voz: {tom_voz}
-                    - Palavras-chave: {palavras_chave if palavras_chave else 'Não especificadas'}
-                    - Número aproximado de palavras: {numero_palavras}
+                    # Adicionar transcrições
+                    if transcricoes_texto:
+                        contexto_completo += "### TRANSCRIÇÕES DE MÍDIA:\n" + transcricoes_texto + "\n\n"
                     
-                    Estruture o conteúdo de forma profissional e engajadora.
+                    # Adicionar contexto do agente se selecionado
+                    contexto_agente = ""
+                    if usar_contexto_agente and st.session_state.agente_selecionado:
+                        agente = st.session_state.agente_selecionado
+                        contexto_agente = construir_contexto(agente, st.session_state.segmentos_selecionados)
+                    
+                    # Construir prompt final
+                    prompt_final = f"""
+                    {contexto_agente}
+                    
+                    ## INSTRUÇÕES PARA GERAÇÃO DE CONTEÚDO:
+                    
+                    **TIPO DE CONTEÚDO:** {tipo_conteudo}
+                    **TOM DE VOZ:** {tom_voz}
+                    **PALAVRAS-CHAVE:** {palavras_chave if palavras_chave else 'Não especificadas'}
+                    **NÚMERO DE PALAVRAS:** {numero_palavras} (±10%)
+                    **NÍVEL DE DETALHE:** {nivel_detalhe}
+                    **INCLUIR CALL-TO-ACTION:** {incluir_cta}
+                    
+                    **INSTRUÇÕES ESPECÍFICAS:**
+                    {instrucoes_especificas if instrucoes_especificas else 'Nenhuma instrução específica fornecida.'}
+                    
+                    ## FONTES E REFERÊNCIAS:
+                    {contexto_completo}
+                    
+                    ## TAREFA:
+                    Com base em TODAS as fontes fornecidas acima, gere um conteúdo do tipo {tipo_conteudo} que:
+                    
+                    1. **Síntese Eficiente:** Combine e sintetize informações de todas as fontes
+                    2. **Coerência:** Mantenha consistência com as informações originais
+                    3. **Valor Agregado:** Vá além da simples cópia, agregando insights
+                    4. **Engajamento:** Crie conteúdo que engaje o público-alvo
+                    5. **Clareza:** Comunique ideias complexas de forma acessível
+                    
+                    **FORMATO DE SAÍDA:** {formato_saida}
+                    
+                    Gere um conteúdo completo e profissional.
                     """
                     
-                    resposta = modelo_texto.generate_content(prompt)
+                    resposta = modelo_texto.generate_content(prompt_final)
+                    
+                    # Processar saída baseada no formato selecionado
+                    conteudo_gerado = resposta.text
+                    
+                    if formato_saida == "HTML Básico":
+                        # Converter markdown para HTML básico
+                        import re
+                        conteudo_gerado = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', conteudo_gerado)
+                        conteudo_gerado = re.sub(r'\*(.*?)\*', r'<em>\1</em>', conteudo_gerado)
+                        conteudo_gerado = re.sub(r'### (.*?)\n', r'<h3>\1</h3>', conteudo_gerado)
+                        conteudo_gerado = re.sub(r'## (.*?)\n', r'<h2>\1</h2>', conteudo_gerado)
+                        conteudo_gerado = re.sub(r'# (.*?)\n', r'<h1>\1</h1>', conteudo_gerado)
+                        conteudo_gerado = conteudo_gerado.replace('\n', '<br>')
                     
                     st.subheader("📄 Conteúdo Gerado")
-                    st.markdown(resposta.text)
+                    
+                    if formato_saida == "HTML Básico":
+                        st.components.v1.html(conteudo_gerado, height=400, scrolling=True)
+                    else:
+                        st.markdown(conteudo_gerado)
+                    
+                    # Estatísticas
+                    palavras_count = len(conteudo_gerado.split())
+                    col_stat1, col_stat2, col_stat3 = st.columns(3)
+                    with col_stat1:
+                        st.metric("Palavras Geradas", palavras_count)
+                    with col_stat2:
+                        st.metric("Arquivos Processados", len(arquivos_upload) if arquivos_upload else 0)
+                    with col_stat3:
+                        st.metric("Fontes Utilizadas", 
+                                 (1 if arquivos_upload else 0) + 
+                                 (1 if briefing_manual or 'briefing_data' in locals() else 0) +
+                                 (1 if transcricoes_texto else 0))
+                    
+                    # Botões de download
+                    extensao = ".html" if formato_saida == "HTML Básico" else ".md" if formato_saida == "Markdown" else ".txt"
                     
                     st.download_button(
-                        "💾 Baixar Conteúdo",
-                        data=resposta.text,
-                        file_name=f"conteudo_gerado.txt",
-                        mime="text/plain"
+                        f"💾 Baixar Conteúdo ({formato_saida})",
+                        data=conteudo_gerado,
+                        file_name=f"conteudo_gerado_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}{extensao}",
+                        mime="text/html" if formato_saida == "HTML Básico" else "text/plain"
                     )
                     
+                    # Salvar no histórico se MongoDB disponível
+                    if mongo_connected_conteudo:
+                        try:
+                            from bson import ObjectId
+                            historico_data = {
+                                "tipo_conteudo": tipo_conteudo,
+                                "tom_voz": tom_voz,
+                                "palavras_chave": palavras_chave,
+                                "numero_palavras": numero_palavras,
+                                "conteudo_gerado": conteudo_gerado,
+                                "fontes_utilizadas": {
+                                    "arquivos_upload": [arquivo.name for arquivo in arquivos_upload] if arquivos_upload else [],
+                                    "briefing_manual": bool(briefing_manual),
+                                    "transcricoes": len(arquivos_midia) if arquivos_midia else 0
+                                },
+                                "data_criacao": datetime.datetime.now()
+                            }
+                            db_briefings['historico_geracao'].insert_one(historico_data)
+                            st.success("✅ Conteúdo salvo no histórico!")
+                        except Exception as e:
+                            st.warning(f"Conteúdo gerado, mas não salvo no histórico: {str(e)}")
+                    
                 except Exception as e:
-                    st.error(f"Erro ao gerar conteúdo: {str(e)}")
-        else:
-            st.warning("Por favor, selecione um briefing do banco de dados ou cole um briefing manualmente.")
+                    st.error(f"❌ Erro ao gerar conteúdo: {str(e)}")
+                    st.info("💡 Dica: Verifique se os arquivos não estão corrompidos e tente novamente.")
+
+    # Seção de histórico rápido
+    if mongo_connected_conteudo:
+        with st.expander("📚 Histórico de Gerações Recentes"):
+            try:
+                historico = list(db_briefings['historico_geracao'].find().sort("data_criacao", -1).limit(5))
+                if historico:
+                    for item in historico:
+                        st.write(f"**{item['tipo_conteudo']}** - {item['data_criacao'].strftime('%d/%m/%Y %H:%M')}")
+                        st.caption(f"Palavras-chave: {item.get('palavras_chave', 'Nenhuma')} | Tom: {item['tom_voz']}")
+                        with st.expander("Ver conteúdo"):
+                            st.write(item['conteudo_gerado'][:500] + "..." if len(item['conteudo_gerado']) > 500 else item['conteudo_gerado'])
+                else:
+                    st.info("Nenhuma geração no histórico")
+            except Exception as e:
+                st.warning(f"Erro ao carregar histórico: {str(e)}")
 
 # ========== ABA: GERAÇÃO DE CONTEÚDO BLOG AGRÍCOLA ==========
 with tab_blog:
