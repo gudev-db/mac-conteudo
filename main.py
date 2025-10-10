@@ -30,7 +30,7 @@ class AstraDBClient:
             "Accept": "application/json"
         }
     
-    def vector_search(self, collection: str, vector: List[float], limit: int = 10) -> List[Dict]:
+    def vector_search(self, collection: str, vector: List[float], limit: int = 6) -> List[Dict]:
         """Realiza busca por similaridade vetorial"""
         url = f"{self.base_url}/{collection}"
         payload = {
@@ -2001,10 +2001,7 @@ with tab_revisao_tecnica:
     with col_rev2:
         st.subheader("⚙️ Configurações RAG")
         reescrever_automatico_rev = st.checkbox("REESCREVER automaticamente com RAG", value=True)
-        rigor_tecnico = st.select_slider(
-            "Rigor Técnico:",
-            ["Básico", "Intermediário", "Avançado", "Científico"]
-        )
+        
         
         incluir_referencias = st.checkbox("Incluir referências técnicas", value=True)
         validar_dados = st.checkbox("Validar dados numéricos", value=True)
@@ -2027,7 +2024,6 @@ with tab_revisao_tecnica:
                         
                         # MOSTRA APENAS O CONTEÚDO REEESCRITO
                         st.subheader("✨ Conteúdo Técnico Reescrito")
-                        st.success(f"✅ Conteúdo reescrito com rigor {rigor_tecnico} usando base técnica")
                         
                         # Estatísticas de melhoria
                         palavras_orig = len(texto_tecnico.split())
