@@ -537,8 +537,7 @@ else:
 
 # Controles de segmentos na sidebar
 if st.session_state.agente_selecionado:
-    st.sidebar.subheader("🔧 Configurações do Agente")
-    st.sidebar.write("Selecione quais bases de conhecimento devem estar ativas durante o uso do agente selecionado:")
+    
     
     segmentos_disponiveis = {
         "Prompt do Sistema": "system_prompt",
@@ -553,12 +552,7 @@ if st.session_state.agente_selecionado:
             segmentos_selecionados.append(chave)
     
     st.session_state.segmentos_selecionados = segmentos_selecionados
-    
-    # Exibir status dos segmentos
-    if segmentos_selecionados:
-        st.sidebar.success(f"✅ Usando {len(segmentos_selecionados)} segmento(s)")
-    else:
-        st.sidebar.warning("⚠️ Nenhum segmento selecionado")
+
 
 st.text("")
 st.text("Para navegar pelas abas, clique em uma e pressione as setas para a esquerda ou direita em seu teclado")
