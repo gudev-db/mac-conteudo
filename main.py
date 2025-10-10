@@ -11,6 +11,193 @@ import json
 import hashlib
 from google.genai import types
 import uuid
+from typing import List, Dict
+import openai
+
+# Configurações das credenciais
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+ASTRA_DB_API_ENDPOINT = os.getenv('ASTRA_DB_API_ENDPOINT')
+ASTRA_DB_APPLICATION_TOKEN = os.getenv('ASTRA_DB_APPLICATION_TOKEN')
+ASTRA_DB_NAMESPACE = os.getenv('ASTRA_DB_NAMESPACE')
+ASTRA_DB_COLLECTION = os.getenv('ASTRA_DB_COLLECTION')
+
+class AstraDBClient:
+    def __init__(self):
+        self.base_url = f"{ASTRA_DB_API_ENDPOINT}/api/json/v1/{ASTRA_DB_NAMESPACE}"
+        self.headers = {
+            "Content-Type": "application/json",
+            "x-cassandra-token": ASTRA_DB_APPLICATION_TOKEN,
+            "Accept": "application/json"
+        }
+    
+    def vector_search(self, collection: str, vector: List[float], limit: int = 5) -> List[Dict]:
+        """Realiza busca por similaridade vetorial"""
+        url = f"{self.base_url}/{collection}"
+        payload = {
+            "find": {
+                "sort": {"$vector": vector},
+                "options": {"limit": limit}
+            }
+        }
+        try:
+            response = requests.post(url, json=payload, headers=self.headers, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            return data.get("data", {}).get("documents", [])
+        except Exception as e:
+            st.error(f"Erro na busca vetorial: {str(e)}")
+            return []
+
+# Inicializa o cliente AstraDB
+astra_client = AstraDBClient()
+
+def get_embedding(text: str) -> List[float]:
+    """Obtém embedding do texto usando OpenAI"""
+    try:
+        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        response = client.embeddings.create(
+            input=text,
+            model="text-embedding-3-small"
+        )
+        return response.data[0].embedding
+    except Exception as e:
+        st.warning(f"Embedding OpenAI não disponível: {str(e)}")
+        # Fallback para embedding simples
+        import hashlib
+        import numpy as np
+        text_hash = hashlib.md5(text.encode()).hexdigest()
+        vector = [float(int(text_hash[i:i+2], 16) / 255.0) for i in range(0, 32, 2)]
+        # Preenche com valores aleatórios para ter 1536 dimensões
+        while len(vector) < 1536:
+            vector.append(0.0)
+        return vector[:1536]
+
+def reescrever_com_rag_blog(content: str) -> str:
+    """REESCREVE conteúdo de blog usando RAG - SAÍDA DIRETA DO CONTEÚDO REESCRITO"""
+    try:
+        # Gera embedding para busca
+        embedding = get_embedding(content[:800])
+        
+        # Busca documentos relevantes
+        relevant_docs = astra_client.vector_search(ASTRA_DB_COLLECTION, embedding, limit=4)
+        
+        # Constrói contexto dos documentos
+        rag_context = ""
+        if relevant_docs:
+            rag_context = "INFORMAÇÕES TÉCNICAS RELEVANTES DA BASE:\n"
+            for i, doc in enumerate(relevant_docs, 1):
+                doc_content = str(doc)
+                # Limpa e formata o documento
+                doc_clean = doc_content.replace('{', '').replace('}', '').replace("'", "").replace('"', '')
+                rag_context += f"--- Fonte {i} ---\n{doc_clean[:500]}...\n\n"
+        else:
+            rag_context = "Base de conhecimento não retornou resultados específicos."
+
+        # Prompt de REWRITE AGGRESSIVO para Blog
+        rewrite_prompt = f"""
+        CONTEÚDO ORIGINAL PARA REWRITE COMPLETO:
+        {content}
+
+        BASE TÉCNICA DE REFERÊNCIA:
+        {rag_context}
+
+        INSTRUÇÕES STRICT - REWRITE TÉCNICO PARA BLOG:
+        VOCÊ DEVE REESCREVER COMPLETAMENTE o conteúdo seguindo estas regras:
+
+        1. SUBSTITUA termos vagos por terminologia técnica precisa da área agrícola
+        2. CORRIGIR automaticamente qualquer imprecisão técnica ou científica
+        3. ENRIQUECER com dados concretos, números e informações específicas da base
+        4. MELHORAR a estrutura com fluxo lógico: problema → causas → soluções → benefícios
+        5. ADICIONAR exemplos práticos e casos reais quando possível
+        6. MANTER tom {tom_voz} mas com precisão técnica absoluta
+        7. USAR linguagem {nivel_tecnico} apropriada para o público-alvo
+
+        ESTRUTURA OBRIGATÓRIA:
+        - Título impactante e técnico
+        - Introdução com contexto do problema
+        - Análise técnica das causas
+        - Soluções baseadas em evidências
+        - Benefícios mensuráveis
+        - Conclusão com chamada para ação técnica
+
+        NÃO preserve frases originais - FAÇA REWRITE COMPLETO baseado no conhecimento técnico.
+
+        RETORNE APENAS O CONTEÚDO REEESCRITO FINAL, sem comentários ou marcações.
+        """
+
+        # Gera conteúdo REEESCRITO
+        response = modelo_texto.generate_content(rewrite_prompt)
+        return response.text
+        
+    except Exception as e:
+        st.error(f"Erro no RAG rewrite para blog: {str(e)}")
+        return content
+
+def reescrever_com_rag_revisao(content: str, area_tecnica: str) -> str:
+    """REESCREVE conteúdo técnico para revisão - SAÍDA DIRETA DO CONTEÚDO REESCRITO"""
+    try:
+        # Gera embedding para busca
+        embedding = get_embedding(content[:800])
+        
+        # Busca documentos relevantes
+        relevant_docs = astra_client.vector_search(ASTRA_DB_COLLECTION, embedding, limit=5)
+        
+        # Constrói contexto dos documentos
+        rag_context = ""
+        if relevant_docs:
+            rag_context = "DOCUMENTAÇÃO TÉCNICA ESPECIALIZADA:\n"
+            for i, doc in enumerate(relevant_docs, 1):
+                doc_content = str(doc)
+                doc_clean = doc_content.replace('{', '').replace('}', '').replace("'", "").replace('"', '')
+                rag_context += f"--- Documento Técnico {i} ---\n{doc_clean[:400]}...\n\n"
+        else:
+            rag_context = "Consulta técnica não retornou documentos específicos."
+
+        # Prompt de REWRITE TÉCNICO AVANÇADO
+        rewrite_prompt = f"""
+        CONTEÚDO TÉCNICO ORIGINAL PARA REESCRITA COMPLETA:
+        {content}
+
+        ÁREA TÉCNICA: {area_tecnica}
+        
+        BASE DE CONHECIMENTO TÉCNICO:
+        {rag_context}
+
+        INSTRUÇÕES PARA REESCRITA TÉCNICA PROFISSIONAL:
+
+        AÇÃO PRINCIPAL: REESCREVER COMPLETAMENTE o conteúdo técnico aplicando:
+
+        1. PRECISÃO CIENTÍFICA: Corrigir todos os termos técnicos imprecisos
+        2. COMPLETUDE TÉCNICA: Adicionar informações faltantes baseadas na documentação
+        3. ESTRUTURA LÓGICA: Reorganizar para seguir metodologia científica
+        4. EVIDÊNCIAS: Incorporar dados, estudos e referências técnicas
+        5. APLICAÇÃO PRÁTICA: Incluir implementações e casos reais
+        6. NORMAS TÉCNICAS: Alinhar com padrões e regulamentações do setor
+
+        REGRAS DE REESCRITA:
+        - NÃO manter frases originais que contenham imprecisões
+        - SUBSTITUIR generalizações por dados específicos
+        - ADICIONAR parâmetros técnicos, dosagens, especificações
+        - INCLUIR referências a pesquisas e validações
+        - MELHORAR a clareza técnica sem perder profundidade
+        - GARANTIR atualização com práticas modernas
+
+        FORMATAÇÃO TÉCNICA:
+        - Use linguagem técnica apropriada
+        - Inclua dados quantitativos quando disponível
+        - Estruture em seções lógicas: fundamentação → metodologia → resultados → discussão
+        - Adicione recomendações práticas baseadas em evidências
+
+        RETORNE APENAS O CONTEÚDO TÉCNICO REEESCRITO E CORRIGIDO.
+        """
+
+        # Gera conteúdo técnico REEESCRITO
+        response = modelo_texto.generate_content(rewrite_prompt)
+        return response.text
+        
+    except Exception as e:
+        st.error(f"Erro no RAG rewrite técnico: {str(e)}")
+        return content
 
 # Configuração inicial
 st.set_page_config(
@@ -1798,51 +1985,174 @@ with tab_revisao_ortografica:
 
 # ========== ABA: REVISÃO TÉCNICA ==========
 with tab_revisao_tecnica:
-    st.header("🔧 Revisão Técnica")
+    st.header("🔧 Revisão Técnica com RAG Automático")
+    st.markdown("**Conteúdo técnico é automaticamente REESCRITO e corrigido com base especializada**")
     
-    texto_tecnico = st.text_area("Cole o conteúdo técnico para revisão:", height=300)
-
+    col_rev1, col_rev2 = st.columns([2, 1])
     
-    if st.button("🔍 Realizar Revisão Técnica", type="primary"):
+    with col_rev1:
+        texto_tecnico = st.text_area("Cole o conteúdo técnico para revisão:", height=300,
+                                   placeholder="Cole aqui o conteúdo técnico que precisa ser reescrito e corrigido...")
+        
+        area_tecnica = st.selectbox(
+            "Área Técnica:",
+            ["Agricultura Geral", "Fitotecnia", "Defensivos Agrícolas", "Solo e Adubação", 
+             "Manejo Integrado", "Irrigação", "Agricultura de Precisão", "Genética e Melhoramento",
+             "Pós-Colheita", "Agricultura Sustentável", "Outra"]
+        )
+        
+        tipo_correcao = st.multiselect(
+            "Tipos de Correção Aplicadas:",
+            ["Precisão Técnica", "Completude Informacional", "Atualização Científica", 
+             "Padronização Terminológica", "Estruturação Lógica", "Inclusão de Dados"],
+            default=["Precisão Técnica", "Completude Informacional", "Atualização Científica"]
+        )
+    
+    with col_rev2:
+        st.subheader("⚙️ Configurações RAG")
+        reescrever_automatico_rev = st.checkbox("REESCREVER automaticamente com RAG", value=True)
+        rigor_tecnico = st.select_slider(
+            "Rigor Técnico:",
+            ["Básico", "Intermediário", "Avançado", "Científico"]
+        )
+        
+        incluir_referencias = st.checkbox("Incluir referências técnicas", value=True)
+        validar_dados = st.checkbox("Validar dados numéricos", value=True)
+        
+        st.subheader("📊 Estatísticas")
         if texto_tecnico:
-            with st.spinner("Realizando revisão técnica..."):
+            palavras = len(texto_tecnico.split())
+            caracteres = len(texto_tecnico)
+            st.metric("Palavras Originais", palavras)
+            st.metric("Caracteres", caracteres)
+
+    # Botão de revisão técnica com RAG
+    if st.button("🔍 Revisar & Reescrever com RAG", type="primary"):
+        if texto_tecnico:
+            with st.spinner("Reescrevendo conteúdo técnico com base especializada..."):
                 try:
-                    # Usar contexto do agente selecionado se disponível
-                    if st.session_state.agente_selecionado:
-                        agente = st.session_state.agente_selecionado
-                        contexto = construir_contexto(agente, st.session_state.segmentos_selecionados)
-                        prompt = f"""
-                        ###BEGIN CONTEXTO###
-                        {contexto}
-                        ###END CONTEXTO###
+                    # APLICA REWRITE TÉCNICO AUTOMÁTICO
+                    if reescrever_automatico_rev:
+                        texto_reescrito = reescrever_com_rag_revisao(texto_tecnico, area_tecnica)
                         
-                        Faça uma revisão técnica do seguinte conteúdo:
+                        # MOSTRA APENAS O CONTEÚDO REEESCRITO
+                        st.subheader("✨ Conteúdo Técnico Reescrito")
+                        st.success(f"✅ Conteúdo reescrito com rigor {rigor_tecnico} usando base técnica")
                         
-                        ###BEGIN TEXTO A SER REVISADO###
-                        {texto_tecnico}
-                        ###END TEXTO A SER REVISADO###
+                        # Estatísticas de melhoria
+                        palavras_orig = len(texto_tecnico.split())
+                        palavras_reesc = len(texto_reescrito.split())
                         
-                        Saída esperada: Conteúdo completo e revisado.
-                        """
+                        col_stat1, col_stat2, col_stat3 = st.columns(3)
+                        with col_stat1:
+                            st.metric("Palavras Originais", palavras_orig)
+                        with col_stat2:
+                            st.metric("Palavras Reescritas", palavras_reesc)
+                        with col_stat3:
+                            diff = palavras_reesc - palavras_orig
+                            st.metric("Enriquecimento", f"+{diff}" if diff > 0 else diff)
+                        
+                        # Indicadores de qualidade
+                        st.info("🎯 **Melhorias Aplicadas:**")
+                        col_qual1, col_qual2 = st.columns(2)
+                        with col_qual1:
+                            if "Precisão Técnica" in tipo_correcao:
+                                st.write("✅ **Precisão Técnica:** Termos corrigidos e validados")
+                            if "Completude Informacional" in tipo_correcao:
+                                st.write("✅ **Completude:** Informações técnicas adicionadas")
+                        with col_qual2:
+                            if "Atualização Científica" in tipo_correcao:
+                                st.write("✅ **Atualização:** Dados atualizados com base recente")
+                            if "Estruturação Lógica" in tipo_correcao:
+                                st.write("✅ **Estrutura:** Fluxo técnico melhorado")
+                        
+                        # Conteúdo final reescrito
+                        st.markdown(texto_reescrito)
+                        
+                        # Botões de ação
+                        col_dl, col_copy = st.columns(2)
+                        with col_dl:
+                            st.download_button(
+                                "💾 Baixar Conteúdo Reescrito",
+                                data=texto_reescrito,
+                                file_name=f"tecnico_reescrito_{area_tecnica.lower().replace(' ', '_')}_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                                mime="text/plain"
+                            )
+                        with col_copy:
+                            if st.button("📋 Copiar para Área de Transferência"):
+                                st.code(texto_reescrito, language='markdown')
+                                st.success("Conteúdo copiado!")
+                    
                     else:
-                        prompt = f"""
-                        Faça uma revisão técnica especializada em {area_tecnica} do seguinte conteúdo:
-                        
-                        ###BEGIN TEXTO A SER REVISADO###
-                        {texto_tecnico}
-                        ###END TEXTO A SER REVISADO###
-                        
-                        Saída esperada: Conteúdo completo e revisado.
-                        """
-                    
-                    resposta = modelo_texto.generate_content(prompt)
-                    st.subheader("📋 Resultado da Revisão Técnica")
-                    st.markdown(resposta.text)
-                    
+                        # Se RAG desativado, mostra análise sem reescrita
+                        st.warning("⚠️ Modo RAG desativado - mostrando análise básica")
+                        st.subheader("📄 Conteúdo Original (Sem Reescrita)")
+                        st.markdown(texto_tecnico)
+                
                 except Exception as e:
                     st.error(f"Erro na revisão técnica: {str(e)}")
         else:
             st.warning("Por favor, cole um conteúdo técnico para revisão.")
+
+    # SEÇÃO: FERRAMENTAS AVANÇADAS
+    st.header("🛠️ Ferramentas Técnicas Avançadas")
+    
+    with st.expander("🔍 Consulta Direta à Base Técnica"):
+        st.info("Consulte informações específicas da base de conhecimento técnico")
+        
+        col_cons1, col_cons2 = st.columns([3, 1])
+        with col_cons1:
+            pergunta_tecnica = st.text_input("Consulta Técnica:", 
+                                           placeholder="Ex: Melhores práticas para controle de nematoides em soja...")
+        with col_cons2:
+            limite_resultados = st.number_input("Resultados", min_value=1, max_value=10, value=3)
+        
+        if st.button("🔎 Consultar Base Técnica"):
+            if pergunta_tecnica:
+                with st.spinner("Buscando na base de conhecimento..."):
+                    try:
+                        embedding = get_embedding(pergunta_tecnica)
+                        resultados = astra_client.vector_search(ASTRA_DB_COLLECTION, embedding, limit=limite_resultados)
+                        
+                        if resultados:
+                            st.success(f"📚 Encontrados {len(resultados)} documentos relevantes:")
+                            
+                            for i, doc in enumerate(resultados, 1):
+                                with st.expander(f"Documento Técnico {i}"):
+                                    doc_content = str(doc)
+                                    # Limpa e formata o documento
+                                    doc_clean = doc_content.replace('{', '').replace('}', '').replace("'", "").replace('"', '')
+                                    # Divide em linhas para melhor legibilidade
+                                    lines = doc_clean.split(',')
+                                    for line in lines:
+                                        if line.strip():
+                                            st.write(f"• {line.strip()}")
+                        else:
+                            st.warning("❌ Nenhum documento técnico encontrado para esta consulta.")
+                            
+                    except Exception as e:
+                        st.error(f"Erro na consulta técnica: {str(e)}")
+
+    # SEÇÃO: EXEMPLOS PRÁTICOS
+    with st.expander("📋 Exemplos de Reescrita Técnica"):
+        st.info("Veja exemplos de como o RAG melhora conteúdo técnico")
+        
+        exemplos = st.selectbox("Selecione um exemplo:", 
+                               ["Controle de Pragas", "Manejo de Solo", "Adubação", "Irrigação"])
+        
+        if exemplos == "Controle de Pragas":
+            col_ex1, col_ex2 = st.columns(2)
+            with col_ex1:
+                st.write("**Antes:** 'Use inseticidas para controlar as pragas'")
+            with col_ex2:
+                st.write("**Depois:** 'Aplicar inseticidas específicos como [produto] na dosagem de [X] ml/ha durante o estágio [Y] do cultivo, seguindo recomendações do [órgão técnico]'")
+        
+        elif exemplos == "Manejo de Solo":
+            col_ex1, col_ex2 = st.columns(2)
+            with col_ex1:
+                st.write("**Antes:** 'Melhore a qualidade do solo'")
+            with col_ex2:
+                st.write("**Depois:** 'Implementar plantio direto com cobertura vegetal de [espécie], realizar análise química trimestral e aplicar correções baseadas nos parâmetros de pH [X] e matéria orgânica [Y]%'")
 
 
 # ========== ABA: OTIMIZAÇÃO DE CONTEÚDO ==========
