@@ -101,7 +101,6 @@ def reescrever_com_rag_blog(content: str) -> str:
         BASE TÉCNICA DE REFERÊNCIA:
         {rag_context}
 
-        INSTRUÇÕES STRICT - REWRITE TÉCNICO PARA BLOG:
         VOCÊ DEVE REESCREVER COMPLETAMENTE o conteúdo seguindo estas regras:
 
         1. SUBSTITUA termos vagos por terminologia técnica precisa da área agrícola
@@ -115,7 +114,7 @@ def reescrever_com_rag_blog(content: str) -> str:
         ESTRUTURA OBRIGATÓRIA:
         - Mantenha a estrutura original. O seu papel é REVISAR TÉCNICAMENTE O CONTEÚDO DE ENTRADA.
 
-        NÃO preserve frases originais - FAÇA REWRITE COMPLETO baseado no conhecimento técnico.
+        REVISE E CORRIJA QUAISQUER ERROS OU FALTA DE INFORMAÇÕES.
 
         RETORNE APENAS O CONTEÚDO REEESCRITO FINAL, sem comentários ou marcações.
         """
