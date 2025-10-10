@@ -30,7 +30,7 @@ class AstraDBClient:
             "Accept": "application/json"
         }
     
-    def vector_search(self, collection: str, vector: List[float], limit: int = 5) -> List[Dict]:
+    def vector_search(self, collection: str, vector: List[float], limit: int = 10) -> List[Dict]:
         """Realiza busca por similaridade vetorial"""
         url = f"{self.base_url}/{collection}"
         payload = {
@@ -113,12 +113,7 @@ def reescrever_com_rag_blog(content: str) -> str:
         7. USAR linguagem {nivel_tecnico} apropriada para o público-alvo
 
         ESTRUTURA OBRIGATÓRIA:
-        - Título impactante e técnico
-        - Introdução com contexto do problema
-        - Análise técnica das causas
-        - Soluções baseadas em evidências
-        - Benefícios mensuráveis
-        - Conclusão com chamada para ação técnica
+        - Mantenha a estrutura original. O seu papel é REVISAR TÉCNICAMENTE O CONTEÚDO DE ENTRADA.
 
         NÃO preserve frases originais - FAÇA REWRITE COMPLETO baseado no conhecimento técnico.
 
