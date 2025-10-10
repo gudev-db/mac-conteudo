@@ -133,7 +133,7 @@ def reescrever_com_rag_blog(content: str) -> str:
         st.error(f"Erro no RAG rewrite para blog: {str(e)}")
         return content
 
-def reescrever_com_rag_revisao(content: str, area_tecnica: str) -> str:
+def reescrever_com_rag_revisao(content: str) -> str:
     """REESCREVE conteúdo técnico para revisão - SAÍDA DIRETA DO CONTEÚDO REESCRITO"""
     try:
         # Gera embedding para busca
@@ -158,7 +158,7 @@ def reescrever_com_rag_revisao(content: str, area_tecnica: str) -> str:
         CONTEÚDO TÉCNICO ORIGINAL PARA REESCRITA COMPLETA:
         {content}
 
-        ÁREA TÉCNICA: {area_tecnica}
+        
         
         BASE DE CONHECIMENTO TÉCNICO:
         {rag_context}
@@ -1994,12 +1994,7 @@ with tab_revisao_tecnica:
         texto_tecnico = st.text_area("Cole o conteúdo técnico para revisão:", height=300,
                                    placeholder="Cole aqui o conteúdo técnico que precisa ser reescrito e corrigido...")
         
-        area_tecnica = st.selectbox(
-            "Área Técnica:",
-            ["Agricultura Geral", "Fitotecnia", "Defensivos Agrícolas", "Solo e Adubação", 
-             "Manejo Integrado", "Irrigação", "Agricultura de Precisão", "Genética e Melhoramento",
-             "Pós-Colheita", "Agricultura Sustentável", "Outra"]
-        )
+        
         
         tipo_correcao = st.multiselect(
             "Tipos de Correção Aplicadas:",
@@ -2033,7 +2028,7 @@ with tab_revisao_tecnica:
                 try:
                     # APLICA REWRITE TÉCNICO AUTOMÁTICO
                     if reescrever_automatico_rev:
-                        texto_reescrito = reescrever_com_rag_revisao(texto_tecnico, area_tecnica)
+                        texto_reescrito = reescrever_com_rag_revisao(texto_tecnico)
                         
                         # MOSTRA APENAS O CONTEÚDO REEESCRITO
                         st.subheader("✨ Conteúdo Técnico Reescrito")
@@ -2075,7 +2070,7 @@ with tab_revisao_tecnica:
                             st.download_button(
                                 "💾 Baixar Conteúdo Reescrito",
                                 data=texto_reescrito,
-                                file_name=f"tecnico_reescrito_{area_tecnica.lower().replace(' ', '_')}_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                                file_name=f"tecnico_reescrito_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.txt",
                                 mime="text/plain"
                             )
                         with col_copy:
