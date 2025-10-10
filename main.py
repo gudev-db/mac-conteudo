@@ -535,23 +535,9 @@ if agentes:
 else:
     st.info("Nenhum agente disponível. Crie um agente primeiro na aba de Gerenciamento.")
 
-# Controles de segmentos na sidebar
 if st.session_state.agente_selecionado:
-    
-    
-    segmentos_disponiveis = {
-        "Prompt do Sistema": "system_prompt",
-        "Brand Guidelines": "base_conhecimento", 
-        "Comentários do Cliente": "comments",
-        "Planejamento": "planejamento"
-    }
-    
-    segmentos_selecionados = []
-    for nome, chave in segmentos_disponiveis.items():
-        if st.sidebar.checkbox(nome, value=chave in st.session_state.segmentos_selecionados, key=f"seg_{chave}"):
-            segmentos_selecionados.append(chave)
-    
-    st.session_state.segmentos_selecionados = segmentos_selecionados
+    # Define todos os segmentos como sempre selecionados
+    st.session_state.segmentos_selecionados = ["system_prompt", "base_conhecimento", "comments", "planejamento"]
 
 
 st.text("")
