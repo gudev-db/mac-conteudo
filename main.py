@@ -1459,8 +1459,8 @@ with tab_conteudo:
 
 # ========== ABA: GERAÇÃO DE CONTEÚDO BLOG AGRÍCOLA ==========
 with tab_blog:
-    st.title("🌱 Gerador de Blog Posts Agrícolas COM RAG")
-    st.markdown("Crie conteúdos especializados para o agronegócio enriquecidos com base técnica automática")
+    st.title("🌱 Gerador de Blog Posts Agrícolas")
+    st.markdown("Crie conteúdos especializados para o agronegócio seguindo a estrutura profissional")
 
     # Conexão com MongoDB
     try:
@@ -1495,8 +1495,7 @@ with tab_blog:
                 "meta_descricao": meta_descricao,
                 "linha_fina": linha_fina,
                 "links_internos": links_internos or [],
-                "data_criacao": datetime.datetime.now(),
-                "versao": "3.0-RAG"
+                "versao": "2.0"
             }
             collection_posts.insert_one(documento)
             return True
@@ -1516,7 +1515,6 @@ with tab_blog:
             documento = {
                 "id": str(uuid.uuid4()),
                 "briefing": briefing_data,
-                "data_criacao": datetime.datetime.now()
             }
             collection_briefings.insert_one(documento)
             return True
@@ -1531,74 +1529,52 @@ with tab_blog:
                 return []
         return []
 
-    # FUNÇÃO RAG PARA BLOG
-    def reescrever_blog_com_rag(conteudo_original, contexto_blog):
-        """Reescreve conteúdo de blog usando RAG do AstraDB"""
-        try:
-            # Gera embedding para busca
-            embedding = get_embedding(conteudo_original[:800])
-            
-            # Busca documentos relevantes
-            relevant_docs = astra_client.vector_search(ASTRA_DB_COLLECTION, embedding, limit=4)
-            
-            # Constrói contexto RAG
-            rag_context = ""
-            if relevant_docs:
-                rag_context = "INFORMAÇÕES TÉCNICAS DA BASE DE CONHECIMENTO:\n"
-                for i, doc in enumerate(relevant_docs, 1):
-                    doc_content = str(doc)
-                    doc_clean = doc_content.replace('{', '').replace('}', '').replace("'", "").replace('"', '')
-                    rag_context += f"--- Fonte Técnica {i} ---\n{doc_clean[:400]}...\n\n"
-            else:
-                rag_context = "Base técnica consultada - informações gerais aplicadas."
+    # Regras base do sistema - ATUALIZADAS
+    regras_base = '''
+    **REGRAS DE REPLICAÇÃO - ESTRUTURA PROFISSIONAL:**
 
-            # Prompt de reescrita agressiva
-            prompt_reescrita = f"""
-            CONTEÚDO ORIGINAL DO BLOG:
-            {conteudo_original}
+    **1. ESTRUTURA DO DOCUMENTO:**
+    - Título principal impactante e com chamada para ação (máx 65 caracteres)
+    - Linha fina resumindo o conteúdo (máx 200 caracteres)
+    - Meta-title otimizado para SEO (máx 60 caracteres)
+    - Meta-descrição atrativa (máx 155 caracteres)
+    - Introdução contextualizando o problema e impacto
+    - Seção de Problema: Detalhamento técnico dos desafios
+    - Seção de Solução Genérica: Estratégia geral de manejo
+    - Seção de Solução Específica: Produto como resposta aos desafios
+    - Conclusão com reforço de compromisso e chamada para ação
+    - Assinatura padrão da empresa
 
-            CONTEXTO DO BLOG:
-            {contexto_blog}
+    **2. LINGUAGEM E TOM:**
+    - {tom_voz}
+    - Linguagem {nivel_tecnico} técnica e profissional
+    - Uso de terminologia específica do agronegócio
+    - Persuasão baseada em benefícios e solução de problemas
+    - Evitar repetição de informações entre seções
 
-            BASE TÉCNICA ESPECIALIZADA:
-            {rag_context}
+    **3. ELEMENTOS TÉCNICOS OBRIGATÓRIOS:**
+    - Nomes científicos entre parênteses quando aplicável
+    - Citação EXPLÍCITA de fontes confiáveis (Embrapa, universidades, etc.) mencionando o órgão/instituição no corpo do texto
+    - Destaque para termos técnicos-chave e nomes de produtos
+    - Descrição detalhada de danos e benefícios
+    - Dados concretos e informações mensuráveis com referências específicas
 
-            INSTRUÇÕES PARA REESCRITA TÉCNICA COMPLETA:
+    **4. FORMATAÇÃO E ESTRUTURA:**
+    - Parágrafos curtos (máximo 4-5 linhas cada)
+    - Listas de tópicos com no máximo 5 itens cada
+    - Evitar blocos extensos de texto
+    - Usar subtítulos para quebrar o conteúdo
 
-            VOCÊ DEVE REESCREVER COMPLETAMENTE O CONTEÚDO APLICANDO:
+    **5. RESTRIÇÕES:**
+    - Palavras proibidas: {palavras_proibidas}
+    - Evitar viés comercial explícito
+    - Manter abordagem {abordagem_problema}
+    - Número de palavras: {numero_palavras} (±5%)
+    - NÃO INVENTAR SOLUÇÕES ou informações não fornecidas
+    - Seguir EXATAMENTE o formato e informações do briefing
+    '''
 
-            1. PRECISÃO TÉCNICA: Corrigir todos os termos agrícolas imprecisos
-            2. ENRIQUECIMENTO: Adicionar dados técnicos da base de conhecimento
-            3. ESTRUTURA: Manter formato blog mas com profundidade técnica
-            4. ATUALIZAÇÃO: Usar informações mais recentes da base
-            5. APLICAÇÃO PRÁTICA: Incluir exemplos reais e casos práticos
-
-            REGRAS DE REESCRITA:
-            - NÃO manter frases originais que contenham generalizações
-            - SUBSTITUIR por terminologia técnica precisa
-            - INCORPORAR dados específicos da base técnica
-            - MELHORAR a fundamentação científica
-            - MANTER tom {tom_voz} mas com precisão absoluta
-
-            ESTRUTURA FINAL:
-            - Título técnico impactante
-            - Introdução com problema real
-            - Desenvolvimento com dados concretos
-            - Soluções baseadas em evidências
-            - Conclusão com aplicabilidade
-
-            RETORNE APENAS O CONTEÚDO BLOG REEESCRITO E TECNICAMENTE APERFEIÇOADO.
-            """
-
-            # Gera conteúdo reescrito
-            response = modelo_texto.generate_content(prompt_reescrita)
-            return response.text
-            
-        except Exception as e:
-            st.error(f"Erro no RAG para blog: {str(e)}")
-            return conteudo_original
-
-    # CONFIGURAÇÕES DO BLOG COM RAG
+    # CONFIGURAÇÕES DO BLOG (agora dentro da aba)
     st.header("📋 Configurações do Blog Agrícola")
     
     col_config1, col_config2 = st.columns(2)
@@ -1607,7 +1583,7 @@ with tab_blog:
         # Modo de entrada - Briefing ou Campos Individuais
         modo_entrada = st.radio("Modo de Entrada:", ["Campos Individuais", "Briefing Completo"])
         
-        # Controle de palavras
+        # Controle de palavras - MAIS RESTRITIVO
         numero_palavras = st.slider("Número de Palavras:", min_value=300, max_value=2500, value=1500, step=100)
         st.info(f"Meta: {numero_palavras} palavras (±5%)")
         
@@ -1623,13 +1599,6 @@ with tab_blog:
         abordagem_problema = st.text_area("Aborde o problema de tal forma que:", "seja claro, técnico e focando na solução prática para o produtor")
     
     with col_config2:
-        # Configurações RAG
-        st.subheader("🧠 Sistema RAG Automático")
-        usar_rag_automatico = st.checkbox("Reescrever automaticamente com RAG", value=True,
-                                         help="Conteúdo será reescrito com base técnica especializada")
-        intensidade_rag = st.select_slider("Intensidade do RAG:", 
-                                         ["Leve", "Moderada", "Agressiva", "Completa"])
-        
         # Restrições
         st.subheader("🚫 Restrições")
         palavras_proibidas = st.text_area("Palavras Proibidas (separadas por vírgula):", "melhor, número 1, líder, insuperável, invenção, inventado, solução mágica")
@@ -1690,8 +1659,8 @@ with tab_blog:
             fontes_pesquisa = st.text_area("Fontes para Pesquisa/Referência (cite órgãos específicos):", 
                                          "Embrapa Soja, Universidade de São Paulo - ESALQ, Instituto Biológico de São Paulo, Artigos técnicos sobre nematoides")
             
-            # Upload de arquivos estratégicos
-            arquivos_estrategicos = st.file_uploader("📎 Upload de Arquivos Estratégicos", 
+            # Upload de MÚLTIPLOS arquivos estratégicos
+            arquivos_estrategicos = st.file_uploader("📎 Upload de Múltiplos Arquivos Estratégicos", 
                                                    type=['txt', 'pdf', 'docx', 'mp3', 'wav', 'mp4', 'mov'], 
                                                    accept_multiple_files=True)
             if arquivos_estrategicos:
@@ -1701,8 +1670,8 @@ with tab_blog:
         st.header("📄 Briefing Completo")
         
         st.warning("""
-        **ATENÇÃO:** Para conteúdos técnicos complexos, recomenda-se usar o modo "Campos Individuais" 
-        para melhor controle da qualidade técnica com RAG.
+        **ATENÇÃO:** Para conteúdos técnicos complexos (especialmente Syngenta), 
+        recomenda-se usar o modo "Campos Individuais" para melhor controle da qualidade.
         """)
         
         briefing_texto = st.text_area("Cole aqui o briefing completo:", height=300,
@@ -1723,9 +1692,9 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                 salvar_briefing(briefing_texto)
                 st.success("Briefing salvo no banco de dados!")
 
-    # LINKS INTERNOS
+    # NOVO CAMPO: LINKS INTERNOS
     st.header("🔗 Links Internos")
-    st.info("Adicione links internos que serão automaticamente inseridos no corpo do texto")
+    st.info("Adicione links internos que serão automaticamente inseridos no corpo do texto como âncoras")
     
     links_internos = []
     num_links = st.number_input("Número de links internos a adicionar:", min_value=0, max_value=10, value=0)
@@ -1748,27 +1717,6 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
     if links_internos:
         st.success(f"✅ {len(links_internos)} link(s) interno(s) configurado(s)")
 
-    # METADADOS PARA SEO
-    st.header("🔍 Metadados para SEO")
-    col_meta1, col_meta2 = st.columns(2)
-    
-    with col_meta1:
-        meta_title = st.text_input("Meta Title (máx 60 caracteres):", 
-                                 max_chars=60,
-                                 help="Título para SEO - aparecerá nos resultados de busca")
-        st.info(f"Caracteres: {len(meta_title)}/60")
-        
-        linha_fina = st.text_area("Linha Fina (máx 200 caracteres):",
-                                max_chars=200,
-                                help="Resumo executivo que aparece abaixo do título")
-        st.info(f"Caracteres: {len(linha_fina)}/200")
-    
-    with col_meta2:
-        meta_descricao = st.text_area("Meta Descrição (máx 155 caracteres):",
-                                    max_chars=155,
-                                    help="Descrição que aparece nos resultados de busca")
-        st.info(f"Caracteres: {len(meta_descricao)}/155")
-
     # Configurações avançadas
     with st.expander("⚙️ Configurações Avançadas"):
         col_av1, col_av2 = st.columns(2)
@@ -1789,162 +1737,22 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
             st.subheader("📐 Formatação")
             max_paragrafos = st.slider("Máximo de linhas por parágrafo:", 3, 8, 5)
             max_lista_itens = st.slider("Máximo de itens por lista:", 3, 8, 5)
-
-    # BOTÃO DE GERAÇÃO COM RAG
-    st.header("🔄 Geração com RAG Automático")
-    
-    if st.button("🚀 Gerar Blog Post com RAG", type="primary", use_container_width=True):
-        with st.spinner("Gerando e reescrevendo conteúdo com base técnica..."):
-            try:
-                # Prepara contexto baseado no modo
-                if modo_entrada == "Campos Individuais":
-                    contexto_geracao = f"""
-                    TÍTULO: {titulo_blog}
-                    CULTURA: {cultura}
-                    EDITORIA: {editoria}
-                    OBJETIVO: {objetivo_post}
-                    PROBLEMA: {problema_principal}
-                    PRAGAS: {pragas_alto}
-                    DANOS: {danos_causados}
-                    SOLUÇÃO GENÉRICA: {solucao_generica}
-                    PRODUTO: {nome_produto}
-                    BENEFÍCIOS: {beneficios_produto}
-                    """
-                else:
-                    contexto_geracao = briefing_texto
-
-                # Prompt de geração inicial
-                prompt_geracao = f"""
-                Gere um post de blog técnico sobre {palavra_chave_principal} com base nestas informações:
-
-                {contexto_geracao}
-
-                CONFIGURAÇÕES:
-                - Tom de voz: {tom_voz}
-                - Nível técnico: {nivel_tecnico}
-                - Número de palavras: {numero_palavras}
-                - Estrutura: {', '.join(estrutura_opcoes)}
-                - Palavras-chave: {palavra_chave_principal}, {palavras_chave_secundarias}
-
-                Gere um conteúdo técnico inicial bem estruturado.
-                """
-
-                # Gera conteúdo inicial
-                response_geracao = modelo_texto.generate_content(prompt_geracao)
-                texto_inicial = response_geracao.text
-
-                # APLICA RAG AUTOMÁTICO
-                if usar_rag_automatico:
-                    st.info("🧠 Aplicando reescrita técnica com RAG...")
-                    
-                    # Prepara contexto para RAG
-                    contexto_rag = f"""
-                    Tema: {palavra_chave_principal}
-                    Cultura: {cultura}
-                    Tom: {tom_voz}
-                    Nível: {nivel_tecnico}
-                    Intensidade RAG: {intensidade_rag}
-                    """
-                    
-                    # Reescrita com RAG
-                    texto_final = reescrever_blog_com_rag(texto_inicial, contexto_rag)
-                    
-                    # MOSTRA APENAS O CONTEÚDO REEESCRITO
-                    st.subheader("📝 Conteúdo Reescrito com Base Técnica")
-                    st.success(f"✅ Conteúdo automaticamente reescrito com RAG ({intensidade_rag})")
-                    
-                    # Estatísticas
-                    palavras_inicial = len(texto_inicial.split())
-                    palavras_final = len(texto_final.split())
-                    
-                    col_stat1, col_stat2, col_stat3 = st.columns(3)
-                    with col_stat1:
-                        st.metric("Palavras Iniciais", palavras_inicial)
-                    with col_stat2:
-                        st.metric("Palavras Finais", palavras_final)
-                    with col_stat3:
-                        diff = palavras_final - palavras_inicial
-                        st.metric("Enriquecimento", f"+{diff}" if diff > 0 else diff)
-                    
-                    # Conteúdo final
-                    st.markdown(texto_final)
-                    
-                    # Salva no MongoDB
-                    if salvar_post(
-                        titulo_blog if 'titulo_blog' in locals() else "Técnico RAG",
-                        cultura if 'cultura' in locals() else "Geral",
-                        editoria if 'editoria' in locals() else "Técnica",
-                        mes_publicacao if 'mes_publicacao' in locals() else datetime.datetime.now().strftime("%m/%Y"),
-                        objetivo_post if 'objetivo_post' in locals() else "Conteúdo técnico",
-                        url if 'url' in locals() else "/",
-                        texto_final,
-                        f"{palavra_chave_principal}, {palavras_chave_secundarias}",
-                        palavras_proibidas,
-                        tom_voz,
-                        ', '.join(estrutura_opcoes),
-                        palavras_final,
-                        meta_title,
-                        meta_descricao,
-                        linha_fina,
-                        links_internos
-                    ):
-                        st.success("✅ Post salvo no banco de dados!")
-                    
-                    # Botão de download
-                    st.download_button(
-                        "💾 Baixar Conteúdo Reescrito",
-                        data=texto_final,
-                        file_name=f"blog_rag_{palavra_chave_principal.lower().replace(' ', '_')}_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.txt",
-                        mime="text/plain"
-                    )
-                
-                else:
-                    # Sem RAG - mostra conteúdo original
-                    st.subheader("📝 Conteúdo Gerado (Sem RAG)")
-                    st.markdown(texto_inicial)
-                    
-                    st.download_button(
-                        "💾 Baixar Conteúdo Original",
-                        data=texto_inicial,
-                        file_name=f"blog_original_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.txt",
-                        mime="text/plain"
-                    )
-                
-            except Exception as e:
-                st.error(f"Erro na geração: {str(e)}")
-
-    # BANCO DE TEXTOS GERADOS
-    st.header("📚 Banco de Textos Gerados")
-    
-    posts_anteriores = carregar_posts_anteriores()
-    if posts_anteriores:
-        for post in posts_anteriores:
-            with st.expander(f"{post.get('titulo', 'Sem título')} - {post.get('data_criacao', '').strftime('%d/%m/%Y') if 'data_criacao' in post else 'N/A'}"):
-                st.write(f"**Cultura:** {post.get('cultura', 'N/A')}")
-                st.write(f"**Palavras:** {post.get('palavras_contagem', 'N/A')}")
-                st.write(f"**Versão:** {post.get('versao', 'N/A')}")
-                
-                # Mostrar metadados
-                if post.get('meta_title'):
-                    st.write(f"**Meta Title:** {post.get('meta_title')}")
-                
-                st.text_area("Conteúdo:", value=post.get('texto_gerado', ''), height=200, key=f"content_{post['id']}")
-                
-                col_uso1, col_uso2 = st.columns(2)
-                with col_uso1:
-                    if st.button("Reutilizar", key=f"reuse_{post['id']}"):
-                        st.session_state.texto_gerado = post.get('texto_gerado', '')
-                        st.success("Conteúdo carregado para reutilização!")
-                with col_uso2:
-                    st.download_button(
-                        label="📥 Download",
-                        data=post.get('texto_gerado', ''),
-                        file_name=f"blog_{post.get('titulo', 'post').lower().replace(' ', '_')}.txt",
-                        mime="text/plain",
-                        key=f"dl_btn_{post['id']}"
-                    )
-    else:
-        st.info("Nenhum post encontrado no banco de dados.")
+            
+            # MÚLTIPLOS arquivos para transcrição
+            st.subheader("🎤 Transcrição de Mídia")
+            arquivos_midia = st.file_uploader("Áudios/Vídeos para Transcrição (múltiplos)", 
+                                            type=['mp3', 'wav', 'mp4', 'mov'], 
+                                            accept_multiple_files=True)
+            
+            if arquivos_midia:
+                st.info(f"{len(arquivos_midia)} arquivo(s) de mídia carregado(s)")
+                if st.button("🎬 Transcrever Mídia"):
+                    with st.spinner("Transcrevendo arquivos de mídia..."):
+                        for arquivo in arquivos_midia:
+                            tipo = "audio" if arquivo.type.startswith('audio') else "video"
+                            transcricao = transcrever_audio_video(arquivo, tipo)
+                            st.write(f"**Transcrição de {arquivo.name}:**")
+                            st.write(transcricao)
 
     # Metadados para SEO
     st.header("🔍 Metadados para SEO")
