@@ -466,18 +466,18 @@ def check_admin_password():
 
 
 
+
+
+# Seletor de Agente na parte superior (acima das abas)
+st.image('macLogo.png', width=300)
+st.title("Conteúdo")
+st.header("🤖 Seletor de Agente")
 # Botão de logout na sidebar
 if st.button("🚪 Sair", key="logout_btn"):
     for key in ["logged_in", "user", "admin_password_correct", "admin_user"]:
         if key in st.session_state:
             del st.session_state[key]
     st.rerun()
-
-# Seletor de Agente na parte superior (acima das abas)
-st.image('macLogo.png', width=300)
-st.title("Conteúdo")
-st.header("🤖 Seletor de Agente")
-
 # Inicializar estado da sessão para agente selecionado
 if "agente_selecionado" not in st.session_state:
     st.session_state.agente_selecionado = None
