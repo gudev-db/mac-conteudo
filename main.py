@@ -250,8 +250,8 @@ if not gemini_api_key:
     st.stop()
 
 genai.configure(api_key=gemini_api_key)
-modelo_vision = genai.GenerativeModel("gemini-2.5-flash", generation_config={"temperature": 0.1})
-modelo_texto = genai.GenerativeModel("gemini-2.5-flash")
+modelo_vision = genai.GenerativeModel("gemini-2.0-flash", generation_config={"temperature": 0.1})
+modelo_texto = genai.GenerativeModel("gemini-2.0-flash")
 
 # --- Funções CRUD para Agentes ---
 def criar_agente(nome, system_prompt, base_conhecimento, comments, planejamento, categoria, agente_mae_id=None, herdar_elementos=None):
@@ -411,13 +411,13 @@ def transcrever_audio_video(arquivo, tipo_arquivo):
         if len(arquivo_bytes) > 20 * 1024 * 1024:  # 20MB
             uploaded_file = client.files.upload(file=arquivo_bytes, mime_type=mime_type)
             response = client.models.generate_content(
-                model="gemini-2.5-flash", 
+                model="gemini-2.0-flash", 
                 contents=["Transcreva este arquivo em detalhes:", uploaded_file]
             )
         else:
             # Para arquivos menores, usa inline
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-2.0-flash",
                 contents=[
                     "Transcreva este arquivo em detalhes:",
                     types.Part.from_bytes(data=arquivo_bytes, mime_type=mime_type)
