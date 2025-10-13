@@ -79,7 +79,7 @@ def reescrever_com_rag_blog(content: str) -> str:
         embedding = get_embedding(content[:800])
         
         # Busca documentos relevantes
-        relevant_docs = astra_client.vector_search(ASTRA_DB_COLLECTION, embedding, limit=4)
+        relevant_docs = astra_client.vector_search(ASTRA_DB_COLLECTION, embedding, limit=10)
         
         # Constrói contexto dos documentos
         rag_context = ""
@@ -93,34 +93,56 @@ def reescrever_com_rag_blog(content: str) -> str:
         else:
             rag_context = "Base de conhecimento não retornou resultados específicos."
 
-        # Prompt de REWRITE AGGRESSIVO para Blog
+        # Prompt de entendimento RAG
         rewrite_prompt = f"""
-        CONTEÚDO ORIGINAL PARA REWRITE COMPLETO:
+
+        Entenda o que no texto original de fato é enriquecido e corrigido pelo referencial teórico. Considere que você não pode tangenciar o assunto do texto original.
+    
+        ###BEGIN TEXTO ORIGINAL###
         {content}
+        ###END TEXTO ORIGINAL###
 
-        BASE TÉCNICA DE REFERÊNCIA:
+        ###BEGIN REFERENCIAL TEÓRICO###
         {rag_context}
-
-        VOCÊ DEVE REESCREVER COMPLETAMENTE o conteúdo seguindo estas regras:
-
-        1. SUBSTITUA termos vagos por terminologia técnica precisa da área agrícola
-        2. CORRIGIR automaticamente qualquer imprecisão técnica ou científica
-        3. ENRIQUECER com dados concretos, números e informações específicas da base
-        4. MELHORAR a estrutura com fluxo lógico: problema → causas → soluções → benefícios
-        5. ADICIONAR exemplos práticos e casos reais quando possível
-        6. MANTER tom {tom_voz} mas com precisão técnica absoluta
-        7. USAR linguagem {nivel_tecnico} apropriada para o público-alvo
-
-        ESTRUTURA OBRIGATÓRIA:
-        - Mantenha a estrutura original. O seu papel é REVISAR TÉCNICAMENTE O CONTEÚDO DE ENTRADA.
-
-        REVISE E CORRIJA QUAISQUER ERROS OU FALTA DE INFORMAÇÕES.
-
-        RETORNE APENAS O CONTEÚDO REEESCRITO FINAL, sem comentários ou marcações.
+        ###END REFERENCIAL TEÓRICO###
+        
+        
         """
 
         # Gera conteúdo REEESCRITO
-        response = modelo_texto.generate_content(rewrite_prompt)
+        pre_response = modelo_texto.generate_content(rewrite_prompt)
+
+        # Saída final
+        final_prompt = f"""
+    
+        ###BEGIN TEXTO ORIGINAL###
+        {content}
+        ###END TEXTO ORIGINAL###
+
+        ###BEGIN REFERENCIAL TEÓRICO###
+        {pre_response}
+        ###END REFERENCIAL TEÓRICO###
+        
+        Aplique isso ao texto original:
+
+        1. SUBSTITUA termos vagos por terminologia técnica precisa da área agrícola que são relevantes ao texto original.
+        2. CORRIGIR automaticamente qualquer imprecisão técnica ou científica no texto original
+        3. ENRIQUECER com dados concretos, números e informações específicas da base
+        4. MANTER tom {tom_voz} mas com precisão técnica absoluta
+        5. MANTENHA a estrutura do texto original. Não reescreva por inteiro. Apenas corrija
+        6. NÃO USE bullets
+        7. O agente revisor precisaria entregar o texto exatamente como no original, mas apontando os ajustes técnicos necessários/feitos, sem reescrever tudo automaticamente OU reescrevendo e sinalizando o que foi alterado no texto, mostrando como estava > como ficou > fonte/referência utilizada.
+        8. NÃO acrescente informações que tangem o tema do texto original
+        
+        ESTRUTURA OBRIGATÓRIA:
+        - Mantenha a estrutura original. O seu papel é REVISAR TECNICAMENTE O CONTEÚDO DE ENTRADA ENRIQUECENDO-O COM O REFERENCIAL TEÓRICO.
+
+
+        RETORNE O CONTEÚDO REEESCRITO FINAL, apontando as mudanças em uma subseção ao final.
+        """
+        
+        response = modelo_texto.generate_content(final_prompt)
+ 
         return response.text
         
     except Exception as e:
@@ -134,7 +156,7 @@ def reescrever_com_rag_revisao(content: str) -> str:
         embedding = get_embedding(content[:800])
         
         # Busca documentos relevantes
-        relevant_docs = astra_client.vector_search(ASTRA_DB_COLLECTION, embedding, limit=5)
+        relevant_docs = astra_client.vector_search(ASTRA_DB_COLLECTION, embedding, limit=10)
         
         # Constrói contexto dos documentos
         rag_context = ""
@@ -157,32 +179,22 @@ def reescrever_com_rag_revisao(content: str) -> str:
         BASE DE CONHECIMENTO TÉCNICO:
         {rag_context}
 
-        INSTRUÇÕES PARA REESCRITA TÉCNICA PROFISSIONAL:
+        Aplique isso ao texto original:
 
-        AÇÃO PRINCIPAL: REESCREVER COMPLETAMENTE o conteúdo técnico aplicando:
+        1. SUBSTITUA termos vagos por terminologia técnica precisa da área agrícola que são relevantes ao texto original.
+        2. CORRIGIR automaticamente qualquer imprecisão técnica ou científica no texto original
+        3. ENRIQUECER com dados concretos, números e informações específicas da base
+        4. MANTER tom {tom_voz} mas com precisão técnica absoluta
+        5. MANTENHA a estrutura do texto original. Não reescreva por inteiro. Apenas corrija
+        6. NÃO USE bullets
+        7. O agente revisor precisaria entregar o texto exatamente como no original, mas apontando os ajustes técnicos necessários/feitos, sem reescrever tudo automaticamente OU reescrevendo e sinalizando o que foi alterado no texto, mostrando como estava > como ficou > fonte/referência utilizada.
+        8. NÃO acrescente informações que tangem o tema do texto original
+        
+        ESTRUTURA OBRIGATÓRIA:
+        - Mantenha a estrutura original. O seu papel é REVISAR TECNICAMENTE O CONTEÚDO DE ENTRADA ENRIQUECENDO-O COM O REFERENCIAL TEÓRICO.
 
-        1. PRECISÃO CIENTÍFICA: Corrigir todos os termos técnicos imprecisos
-        2. COMPLETUDE TÉCNICA: Adicionar informações faltantes baseadas na documentação
-        3. ESTRUTURA LÓGICA: Reorganizar para seguir metodologia científica
-        4. EVIDÊNCIAS: Incorporar dados, estudos e referências técnicas
-        5. APLICAÇÃO PRÁTICA: Incluir implementações e casos reais
-        6. NORMAS TÉCNICAS: Alinhar com padrões e regulamentações do setor
 
-        REGRAS DE REESCRITA:
-        - NÃO manter frases originais que contenham imprecisões
-        - SUBSTITUIR generalizações por dados específicos
-        - ADICIONAR parâmetros técnicos, dosagens, especificações
-        - INCLUIR referências a pesquisas e validações
-        - MELHORAR a clareza técnica sem perder profundidade
-        - GARANTIR atualização com práticas modernas
-
-        FORMATAÇÃO TÉCNICA:
-        - Use linguagem técnica apropriada
-        - Inclua dados quantitativos quando disponível
-        - Estruture em seções lógicas: fundamentação → metodologia → resultados → discussão
-        - Adicione recomendações práticas baseadas em evidências
-
-        RETORNE APENAS O CONTEÚDO TÉCNICO REEESCRITO E CORRIGIDO.
+        RETORNE O CONTEÚDO REEESCRITO FINAL, apontando as mudanças em uma subseção ao final.
         """
 
         # Gera conteúdo técnico REEESCRITO
