@@ -1820,7 +1820,7 @@ with tab_blog:
                 "meta_descricao": meta_descricao,
                 "linha_fina": linha_fina,
                 "links_internos": links_internos or [],
-                "versao": "2.0"
+                "versao": "2.1"  # Atualizado para versão 2.1
             }
             collection_posts.insert_one(documento)
             return True
@@ -1854,21 +1854,42 @@ with tab_blog:
                 return []
         return []
 
-    # Regras base do sistema - ATUALIZADAS
+    # ASSINATURA PADRÃO E BOX INICIAL
+    ASSINATURA_PADRAO = """
+---
+
+**Sobre o Mais Agro**
+O Mais Agro é uma plataforma de conteúdo especializado em agronegócio, trazendo informações técnicas, análises de mercado e soluções inovadoras para produtores rurais e profissionais do setor.
+
+📞 **Fale conosco:** [contato@maisagro.com.br](mailto:contato@maisagro.com.br)
+🌐 **Site:** [www.maisagro.com.br](https://www.maisagro.com.br)
+📱 **Redes sociais:** @maisagrooficial
+
+*Este conteúdo foi desenvolvido pela equipe técnica do Mais Agro para apoiar o produtor rural com informações confiáveis e atualizadas.*
+"""
+
+    BOX_INICIAL = """
+> 📌 **Destaque do Artigo**
+> 
+> *[Este box deve conter um resumo executivo de 2-3 linhas com os pontos mais importantes do artigo, destacando o problema principal e a solução abordada. Exemplo: "Neste artigo você vai entender como o manejo integrado de nematoides pode aumentar em até 30% a produtividade da soja, com estratégias práticas para implementação imediata."]*
+"""
+
+    # Regras base do sistema - ATUALIZADAS COM CORREÇÕES
     regras_base = '''
     **REGRAS DE REPLICAÇÃO - ESTRUTURA PROFISSIONAL:**
 
     **1. ESTRUTURA DO DOCUMENTO:**
     - Título principal impactante e com chamada para ação (máx 65 caracteres)
+    - BOX INICIAL com resumo executivo (usar template fornecido)
     - Linha fina resumindo o conteúdo (máx 200 caracteres)
     - Meta-title otimizado para SEO (máx 60 caracteres)
     - Meta-descrição atrativa (máx 155 caracteres)
-    - Introdução contextualizando o problema e impacto
+    - Introdução contextualizando o problema e impacto (EVITAR padrão "cultura X é importante")
     - Seção de Problema: Detalhamento técnico dos desafios
-    - Seção de Solução Genérica: Estratégia geral de manejo
-    - Seção de Solução Específica: Produto como resposta aos desafios
-    - Conclusão com reforço de compromisso e chamada para ação
-    - Assinatura padrão da empresa
+    - Seção de Produto/Solução: Informações específicas sobre o produto e sua aplicação
+    - Seção de Benefícios: Vantagens mensuráveis da solução
+    - Seção de Implementação Prática: Como aplicar no campo
+    - ASSINATURA PADRÃO (usar template fornecido)
 
     **2. LINGUAGEM E TOM:**
     - {tom_voz}
@@ -1876,6 +1897,8 @@ with tab_blog:
     - Uso de terminologia específica do agronegócio
     - Persuasão baseada em benefícios e solução de problemas
     - Evitar repetição de informações entre seções
+    - NÃO usar "Conclusão" como subtítulo - finalizar com chamada para ação natural
+    - NÃO usar letras maiúsculas em excesso - apenas onde gramaticalmente necessário
 
     **3. ELEMENTOS TÉCNICOS OBRIGATÓRIOS:**
     - Nomes científicos entre parênteses quando aplicável
@@ -1889,14 +1912,18 @@ with tab_blog:
     - Listas de tópicos com no máximo 5 itens cada
     - Evitar blocos extensos de texto
     - Usar subtítulos para quebrar o conteúdo
+    - NÃO usar os termos "Solução Genérica" e "Solução Específica" nos subtítulos
 
-    **5. RESTRIÇÕES:**
-    - Palavras proibidas: {palavras_proibidas}
+    **5. RESTRIÇÕES E FILTROS:**
+    - PALAVRAS PROIBIDAS ABSOLUTAS: {palavras_proibidas_efetivas}
+    - NÃO USAR as palavras acima em nenhuma circunstância
     - Evitar viés comercial explícito
     - Manter abordagem {abordagem_problema}
     - Número de palavras: {numero_palavras} (±5%)
     - NÃO INVENTAR SOLUÇÕES ou informações não fornecidas
     - Seguir EXATAMENTE o formato e informações do briefing
+    - EVITAR introduções genéricas sobre importância da cultura
+    - Focar em problemas específicos e soluções práticas desde o início
     '''
 
     # CONFIGURAÇÕES DO BLOG (agora dentro da aba)
@@ -1924,16 +1951,23 @@ with tab_blog:
         abordagem_problema = st.text_area("Aborde o problema de tal forma que:", "seja claro, técnico e focando na solução prática para o produtor")
     
     with col_config2:
-        # Restrições
+        # Restrições - MELHOR CONTROLE DE PALAVRAS PROIBIDAS
         st.subheader("🚫 Restrições")
-        palavras_proibidas = st.text_area("Palavras Proibidas (separadas por vírgula):", "melhor, número 1, líder, insuperável, invenção, inventado, solução mágica")
+        palavras_proibidas_input = st.text_area("Palavras Proibidas (separadas por vírgula):", "melhor, número 1, líder, insuperável, invenção, inventado, solução mágica, revolucionário, único, exclusivo")
         
-        # Estrutura do texto
+        # Processar palavras proibidas para garantir efetividade
+        palavras_proibidas_lista = [palavra.strip().lower() for palavra in palavras_proibidas_input.split(",") if palavra.strip()]
+        palavras_proibidas_efetivas = ", ".join(palavras_proibidas_lista)
+        
+        if palavras_proibidas_lista:
+            st.info(f"🔒 {len(palavras_proibidas_lista)} palavra(s) proibida(s) serão filtradas")
+        
+        # Estrutura do texto - REMOVIDAS SEÇÕES PROBLEMÁTICAS
         st.subheader("📐 Estrutura do Texto")
         estrutura_opcoes = st.multiselect("Seções do Post:", 
-                                         ["Introdução", "Problema", "Solução Genérica", "Solução Específica", 
-                                          "Benefícios", "Implementação Prática", "Conclusão", "Fontes"],
-                                         default=["Introdução", "Problema", "Solução Genérica", "Solução Específica", "Conclusão"])
+                                         ["Introdução", "Problema/Desafio", "Solução/Produto", 
+                                          "Benefícios", "Implementação Prática", "Considerações Finais", "Fontes"],
+                                         default=["Introdução", "Problema/Desafio", "Solução/Produto", "Benefícios", "Implementação Prática"])
         
         # KBF de Produtos
         st.subheader("📦 KBF de Produtos")
@@ -1965,7 +1999,6 @@ with tab_blog:
             problema_principal = st.text_area("Problema Principal/Contexto:", "Solos compactados e com palhada de milho têm favorecido a explosão populacional de nematoides")
             pragas_alvo = st.text_area("Pragas/Alvo Principal:", "Nematoide das galhas (Meloidogyne incognita), Nematoide de cisto (Heterodera glycines)")
             danos_causados = st.text_area("Danos Causados:", "Formação de galhas nas raízes que impedem a absorção de água e nutrientes")
-            solucao_generica = st.text_area("Solução Genérica:", "Adoção de um manejo integrado com genética resistente, rotação de culturas e tratamento de sementes")
         
         with col2:
             st.header("🏭 Informações da Empresa")
@@ -1977,10 +2010,12 @@ with tab_blog:
             principio_ativo = st.text_input("Princípio Ativo/Diferencial:")
             beneficios_produto = st.text_area("Benefícios do Produto:")
             espectro_acao = st.text_area("Espectro de Ação:")
+            modo_acao = st.text_area("Modo de Ação:")
+            aplicacao_pratica = st.text_area("Aplicação Prática:")
             
             st.header("🎯 Diretrizes Específicas")
             diretrizes_usuario = st.text_area("Diretrizes Adicionais:", 
-                                            "NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas. Incluir dicas práticas para implementação no campo. Manter linguagem acessível mas técnica.")
+                                            "NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas. Incluir dicas práticas para implementação no campo. Manter linguagem acessível mas técnica. EVITAR introduções genéricas sobre importância da cultura.")
             fontes_pesquisa = st.text_area("Fontes para Pesquisa/Referência (cite órgãos específicos):", 
                                          "Embrapa Soja, Universidade de São Paulo - ESALQ, Instituto Biológico de São Paulo, Artigos técnicos sobre nematoides")
             
@@ -2030,7 +2065,7 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
             texto_ancora = st.text_input(f"Texto âncora {i+1}:", placeholder="Ex: manejo integrado de pragas")
             url_link = st.text_input(f"URL do link {i+1}:", placeholder="Ex: /blog/manejo-integrado-pragas")
         with col_link2:
-            posicao = st.selectbox(f"Posição {i+1}:", ["Automática", "Introdução", "Problema", "Solução", "Conclusão"])
+            posicao = st.selectbox(f"Posição {i+1}:", ["Automática", "Introdução", "Problema", "Solução", "Benefícios", "Implementação"])
         
         if texto_ancora and url_link:
             links_internos.append({
@@ -2051,7 +2086,8 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
             usar_pesquisa_web = st.checkbox("🔍 Habilitar Pesquisa Web", value=False)
             gerar_blocos_dinamicos = st.checkbox("🔄 Gerar Blocos Dinamicamente", value=True)
             incluir_fontes = st.checkbox("📚 Incluir Referências de Fontes", value=True)
-            incluir_assinatura = st.checkbox("✍️ Incluir Assinatura Padrão", value=True)
+            incluir_assinatura = st.checkbox("✍️ Incluir Assinatura Padrão", value=True, help="Assinatura padrão do Mais Agro será incluída automaticamente")
+            incluir_box_inicial = st.checkbox("📌 Incluir Box Inicial", value=True, help="Box de destaque no início do artigo")
             
         with col_av2:
             st.subheader("Controles de Qualidade")
@@ -2115,11 +2151,11 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                         transcricoes_texto += f"\n\n--- TRANSCRIÇÃO DE {arquivo.name} ---\n{transcricao}"
                     st.info(f"Processadas {len(arquivos_midia)} transcrição(ões)")
                 
-                # Construir prompt personalizado - MAIS RESTRITIVO
+                # Construir prompt personalizado - CORRIGIDO
                 regras_personalizadas = regras_base.format(
                     tom_voz=tom_voz,
                     nivel_tecnico=nivel_tecnico,
-                    palavras_proibidas=palavras_proibidas,
+                    palavras_proibidas_efetivas=palavras_proibidas_efetivas,
                     abordagem_problema=abordagem_problema,
                     numero_palavras=numero_palavras
                 )
@@ -2133,9 +2169,17 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                         instrucoes_links += f"- [{link['texto_ancora']}]({link['url']}) - Posição: {link['posicao']}\n"
                     instrucoes_links += "\n**IMPORTANTE:** Insira os links de forma natural no contexto, sem forçar. Use como referência para criar âncoras relevantes."
                 
+                # Instruções específicas para BOX INICIAL e ASSINATURA
+                instrucoes_estrutura = ""
+                if incluir_box_inicial:
+                    instrucoes_estrutura += f"\n\n**BOX INICIAL OBRIGATÓRIO:**\n{BOX_INICIAL}"
+                
+                if incluir_assinatura:
+                    instrucoes_estrutura += f"\n\n**ASSINATURA PADRÃO OBRIGATÓRIA:**\n{ASSINATURA_PADRAO}"
+
                 prompt_final = f"""
                 **INSTRUÇÕES PARA CRIAÇÃO DE BLOG POST AGRÍCOLA:**
-                
+
                 {regras_personalizadas}
                 
                 **INFORMAÇÕES ESPECÍFICAS:**
@@ -2145,7 +2189,8 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                 - Palavras-chave Secundárias: {palavras_chave_secundarias}
                 
                 {instrucoes_links}
-                
+                {instrucoes_estrutura}
+
                 **METADADOS:**
                 - Meta Title: {meta_title}
                 - Meta Description: {meta_descricao}
@@ -2164,9 +2209,21 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                 - Cite fontes específicas no corpo do texto
                 - Mantenha parágrafos e listas CURTOS
                 - INSIRA OS LINKS INTERNOS de forma natural no texto
+                - EVITE letras maiúsculas em excesso
+                - NÃO USE "Conclusão" como subtítulo
+                - EVITE introduções genéricas sobre importância da cultura
+                - FOCAR em problemas específicos desde o início
+                - FILTRAR as palavras proibidas: {palavras_proibidas_efetivas}
                 
                 **CONTEÚDO DE TRANSCRIÇÕES:**
                 {transcricoes_texto if transcricoes_texto else 'Nenhuma transcrição fornecida'}
+                
+                **INFORMAÇÕES SOBRE PRODUTO:**
+                - Nome do Produto: {nome_produto if 'nome_produto' in locals() else 'Não especificado'}
+                - Princípio Ativo: {principio_ativo if 'principio_ativo' in locals() else 'Não especificado'}
+                - Benefícios: {beneficios_produto if 'beneficios_produto' in locals() else 'Não especificado'}
+                - Modo de Ação: {modo_acao if 'modo_acao' in locals() else 'Não especificado'}
+                - Aplicação Prática: {aplicacao_pratica if 'aplicacao_pratica' in locals() else 'Não especificado'}
                 
                 **DIRETRIZES ADICIONAIS:** {diretrizes_usuario if 'diretrizes_usuario' in locals() else 'Nenhuma'}
                 
@@ -2177,12 +2234,30 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                 
                 texto_gerado = response.text
                 
-                # Verificar contagem de palavras
+                # VERIFICAÇÃO E APLICAÇÃO DE FILTROS
+                # 1. Verificar palavras proibidas
+                palavras_proibidas_encontradas = []
+                for palavra in palavras_proibidas_lista:
+                    if palavra.lower() in texto_gerado.lower():
+                        palavras_proibidas_encontradas.append(palavra)
+                
+                if palavras_proibidas_encontradas:
+                    st.warning(f"⚠️ Palavras proibidas encontradas: {', '.join(palavras_proibidas_encontradas)}")
+                    # Substituir palavras proibidas
+                    for palavra in palavras_proibidas_encontradas:
+                        texto_gerado = texto_gerado.replace(palavra, "[FILTRADO]")
+                        texto_gerado = texto_gerado.replace(palavra.capitalize(), "[FILTRADO]")
+                
+                # 2. Verificar contagem de palavras
                 palavras_count = len(texto_gerado.split())
                 st.info(f"📊 Contagem de palavras geradas: {palavras_count} (meta: {numero_palavras})")
                 
                 if abs(palavras_count - numero_palavras) > numero_palavras * 0.1:
                     st.warning("⚠️ A contagem de palavras está significativamente diferente da meta")
+                
+                # 3. Verificar estrutura
+                if "Conclusão" in texto_gerado:
+                    st.warning("⚠️ O texto contém 'Conclusão' como subtítulo - isso deve ser evitado")
                 
                 # Salvar no MongoDB
                 if salvar_post(
@@ -2194,7 +2269,7 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                     url if 'url' in locals() else "/",
                     texto_gerado,
                     f"{palavra_chave_principal}, {palavras_chave_secundarias}",
-                    palavras_proibidas,
+                    palavras_proibidas_efetivas,
                     tom_voz,
                     ', '.join(estrutura_opcoes),
                     palavras_count,
@@ -2233,6 +2308,10 @@ IMPORTANTE: NÃO INVENTE SOLUÇÕES. Use apenas informações fornecidas aqui.""
                     st.write(f"**Meta Title:** {post.get('meta_title')}")
                 if post.get('meta_descricao'):
                     st.write(f"**Meta Descrição:** {post.get('meta_descricao')}")
+                
+                # Mostrar palavras proibidas filtradas
+                if post.get('palavras_proibidas'):
+                    st.write(f"**Palavras proibidas filtradas:** {post.get('palavras_proibidas')}")
                 
                 # Mostrar links internos se existirem
                 if post.get('links_internos'):
