@@ -135,7 +135,7 @@ def reescrever_com_rag_blog(content: str) -> str:
         9. Mantenha o tamanho do texto original (com um delta de no máximo 5%)
         
         ESTRUTURA OBRIGATÓRIA:
-        - Mantenha a estrutura original. O seu papel é REVISAR TECNICAMENTE O CONTEÚDO DE ENTRADA ENRIQUECENDO-O COM O REFERENCIAL TEÓRICO.
+        - Mantenha a estrutura original. O seu papel é REVISAR TECNICAMENTE O CONTEÚDO DE ENTRADA ENRIQUECENDO-O E, QUANDO NECESSÁRIO, CORRIJINDO-O COM O REFERENCIAL TEÓRICO.
 
 
         RETORNE O CONTEÚDO REEESCRITO FINAL, apontando as mudanças em uma subseção ao final.
@@ -149,7 +149,7 @@ def reescrever_com_rag_blog(content: str) -> str:
         st.error(f"Erro no RAG rewrite para blog: {str(e)}")
         return content
 
-def reescrever_com_rag_revisao(content: str) -> str:
+def reescrever_com_rag_revisao_SEO(content: str) -> str:
     """REESCREVE conteúdo técnico para revisão - SAÍDA DIRETA DO CONTEÚDO REESCRITO"""
     try:
         # Gera embedding para busca
@@ -189,6 +189,63 @@ def reescrever_com_rag_revisao(content: str) -> str:
         7. O agente revisor precisaria entregar o texto exatamente como no original, mas apontando os ajustes técnicos necessários/feitos, sem reescrever tudo automaticamente OU reescrevendo e sinalizando o que foi alterado no texto, mostrando como estava > como ficou > fonte/referência utilizada.
         8. NÃO acrescente informações que tangem o tema do texto original
         9. Mantenha o tamanho do texto original (com um delta de no máximo 5%)
+        
+        ESTRUTURA OBRIGATÓRIA:
+        - Mantenha a estrutura original. O seu papel é REVISAR TECNICAMENTE O CONTEÚDO DE ENTRADA ENRIQUECENDO-O COM O REFERENCIAL TEÓRICO.
+
+
+        RETORNE O CONTEÚDO REEESCRITO FINAL, apontando as mudanças em uma subseção ao final.
+        """
+
+        # Gera conteúdo técnico REEESCRITO
+        response = modelo_texto.generate_content(rewrite_prompt)
+        return response.text
+        
+    except Exception as e:
+        st.error(f"Erro no RAG rewrite técnico: {str(e)}")
+        return content
+
+def reescrever_com_rag_revisao_NORM(content: str) -> str:
+    """REESCREVE conteúdo técnico para revisão - SAÍDA DIRETA DO CONTEÚDO REESCRITO"""
+    try:
+        # Gera embedding para busca
+        embedding = get_embedding(content[:800])
+        
+        # Busca documentos relevantes
+        relevant_docs = astra_client.vector_search(ASTRA_DB_COLLECTION, embedding, limit=10)
+        
+        # Constrói contexto dos documentos
+        rag_context = ""
+        if relevant_docs:
+            rag_context = "DOCUMENTAÇÃO TÉCNICA ESPECIALIZADA:\n"
+            for i, doc in enumerate(relevant_docs, 1):
+                doc_content = str(doc)
+                doc_clean = doc_content.replace('{', '').replace('}', '').replace("'", "").replace('"', '')
+                rag_context += f"--- Documento Técnico {i} ---\n{doc_clean[:400]}...\n\n"
+        else:
+            rag_context = "Consulta técnica não retornou documentos específicos."
+
+        # Prompt de REWRITE TÉCNICO AVANÇADO
+        rewrite_prompt = f"""
+        CONTEÚDO TÉCNICO ORIGINAL PARA REESCRITA COMPLETA:
+        {content}
+
+        
+        
+        BASE DE CONHECIMENTO TÉCNICO:
+        {rag_context}
+
+        Aplique isso ao texto original:
+
+        1. SUBSTITUA termos vagos por terminologia técnica precisa da área agrícola que são relevantes ao texto original.
+        2. CORRIGIR automaticamente qualquer imprecisão técnica ou científica no texto original
+        3. ENRIQUECER com dados concretos, números e informações específicas da base
+        4. MANTER tom {tom_voz} mas com precisão técnica absoluta
+        5. MANTENHA a estrutura do texto original. Não reescreva por inteiro. Apenas corrija
+        7. O agente revisor precisaria entregar o texto exatamente como no original, mas apontando os ajustes técnicos necessários/feitos, sem reescrever tudo automaticamente OU reescrevendo e sinalizando o que foi alterado no texto, mostrando como estava > como ficou > fonte/referência utilizada.
+        8. NÃO acrescente informações que tangem o tema do texto original
+        9. Mantenha o tamanho do texto original (com um delta de no máximo 5%)
+        10. NÃO USE BULLETS NUNCA
         
         ESTRUTURA OBRIGATÓRIA:
         - Mantenha a estrutura original. O seu papel é REVISAR TECNICAMENTE O CONTEÚDO DE ENTRADA ENRIQUECENDO-O COM O REFERENCIAL TEÓRICO.
@@ -2256,7 +2313,9 @@ with tab_revisao_tecnica:
         texto_tecnico = st.text_area("Cole o conteúdo técnico para revisão:", height=300,
                                    placeholder="Cole aqui o conteúdo técnico que precisa ser reescrito e corrigido...")
         
-        
+        # CHECKBOX PARA CONTEÚDO SEO
+        is_seo_content = st.checkbox("📈 Este é conteúdo para SEO", value=False,
+                                   help="Marque se o conteúdo é otimizado para mecanismos de busca")
         
         tipo_correcao = st.multiselect(
             "Tipos de Correção Aplicadas:",
@@ -2268,7 +2327,6 @@ with tab_revisao_tecnica:
     with col_rev2:
         st.subheader("⚙️ Configurações RAG")
         reescrever_automatico_rev = st.checkbox("REESCREVER automaticamente com RAG", value=True)
-        
         
         incluir_referencias = st.checkbox("Incluir referências técnicas", value=True)
         validar_dados = st.checkbox("Validar dados numéricos", value=True)
@@ -2287,7 +2345,14 @@ with tab_revisao_tecnica:
                 try:
                     # APLICA REWRITE TÉCNICO AUTOMÁTICO
                     if reescrever_automatico_rev:
-                        texto_reescrito = reescrever_com_rag_revisao(texto_tecnico)
+                        
+                        # DECIDE QUAL FUNÇÃO CHAMAR BASEADO NO CHECKBOX SEO
+                        if is_seo_content:
+                            texto_reescrito = reescrever_com_rag_revisao_SEO(texto_tecnico)
+                            st.success("🔄 **Modo SEO Ativo** - Otimizando para mecanismos de busca")
+                        else:
+                            texto_reescrito = reescrever_com_rag_revisao_NORM(texto_tecnico)
+                            st.success("📝 **Modo Normal** - Foco em precisão técnica")
                         
                         # MOSTRA APENAS O CONTEÚDO REEESCRITO
                         st.subheader("✨ Conteúdo Técnico Reescrito")
@@ -2319,6 +2384,10 @@ with tab_revisao_tecnica:
                             if "Estruturação Lógica" in tipo_correcao:
                                 st.write("✅ **Estrutura:** Fluxo técnico melhorado")
                         
+                        # Adiciona indicador específico para SEO
+                        if is_seo_content:
+                            st.success("🔍 **Otimizações SEO Aplicadas:** Palavras-chave, meta-descrições e estrutura para mecanismos de busca")
+                        
                         # Conteúdo final reescrito
                         st.markdown(texto_reescrito)
                         
@@ -2328,7 +2397,7 @@ with tab_revisao_tecnica:
                             st.download_button(
                                 "💾 Baixar Conteúdo Reescrito",
                                 data=texto_reescrito,
-                                file_name=f"tecnico_reescrito_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                                file_name=f"tecnico_reescrito_{'SEO_' if is_seo_content else ''}{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.txt",
                                 mime="text/plain"
                             )
                         with col_copy:
@@ -2406,7 +2475,6 @@ with tab_revisao_tecnica:
                 st.write("**Antes:** 'Melhore a qualidade do solo'")
             with col_ex2:
                 st.write("**Depois:** 'Implementar plantio direto com cobertura vegetal de [espécie], realizar análise química trimestral e aplicar correções baseadas nos parâmetros de pH [X] e matéria orgânica [Y]%'")
-
 
 # ========== ABA: OTIMIZAÇÃO DE CONTEÚDO ==========
 with tab_otimizacao:
