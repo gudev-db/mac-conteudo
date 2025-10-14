@@ -2464,6 +2464,9 @@ with tab_otimizacao:
                         - Inclua tabelas quando houver comparativos (dose/época/manejo; custo/benefício). 
                         - Use mini-casos do campo (antes/depois, ganho em sc/ha, ROI estimado). 
                         - Conclusão forte com CTA (ex.: Baixe, Aplique, Fale com um especialista). 
+                        - NÃO FAÇA USO DE BULLETS
+                        - NÃO REDUZA O TAMANHO DO TEXTO ORIGINAL
+                        - NÃO ALTERE O FORMATO E ESTRUTURA DO TEXTO ORIGINAL
                         
                         CONFIGURAÇÕES ATUAIS:
                         - Foco da otimização: {tipo_otimizacao}
