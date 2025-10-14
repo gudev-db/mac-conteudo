@@ -130,7 +130,6 @@ def reescrever_com_rag_blog(content: str) -> str:
         3. ENRIQUECER com dados concretos, números e informações específicas da base
         4. MANTER tom {tom_voz} mas com precisão técnica absoluta
         5. MANTENHA a estrutura do texto original. Não reescreva por inteiro. Apenas corrija
-        6. NÃO USE bullets
         7. O agente revisor precisaria entregar o texto exatamente como no original, mas apontando os ajustes técnicos necessários/feitos, sem reescrever tudo automaticamente OU reescrevendo e sinalizando o que foi alterado no texto, mostrando como estava > como ficou > fonte/referência utilizada.
         8. NÃO acrescente informações que tangem o tema do texto original
         9. Mantenha o tamanho do texto original (com um delta de no máximo 5%)
@@ -187,7 +186,6 @@ def reescrever_com_rag_revisao(content: str) -> str:
         3. ENRIQUECER com dados concretos, números e informações específicas da base
         4. MANTER tom {tom_voz} mas com precisão técnica absoluta
         5. MANTENHA a estrutura do texto original. Não reescreva por inteiro. Apenas corrija
-        6. NÃO USE bullets
         7. O agente revisor precisaria entregar o texto exatamente como no original, mas apontando os ajustes técnicos necessários/feitos, sem reescrever tudo automaticamente OU reescrevendo e sinalizando o que foi alterado no texto, mostrando como estava > como ficou > fonte/referência utilizada.
         8. NÃO acrescente informações que tangem o tema do texto original
         9. Mantenha o tamanho do texto original (com um delta de no máximo 5%)
@@ -2464,9 +2462,8 @@ with tab_otimizacao:
                         - Inclua tabelas quando houver comparativos (dose/época/manejo; custo/benefício). 
                         - Use mini-casos do campo (antes/depois, ganho em sc/ha, ROI estimado). 
                         - Conclusão forte com CTA (ex.: Baixe, Aplique, Fale com um especialista). 
-                        - NÃO FAÇA USO DE BULLETS
                         - NÃO REDUZA O TAMANHO DO TEXTO ORIGINAL
-                        - NÃO ALTERE O FORMATO E ESTRUTURA DO TEXTO ORIGINAL
+                        - Altere a estrutura original apenas para otimizar o conteúdo
                         
                         CONFIGURAÇÕES ATUAIS:
                         - Foco da otimização: {tipo_otimizacao}
