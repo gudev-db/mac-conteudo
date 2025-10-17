@@ -227,7 +227,7 @@ def reescrever_com_rag_revisao_NORM(content: str) -> str:
 
         # Prompt de REWRITE TÉCNICO AVANÇADO
         rewrite_prompt = f"""
-        CONTEÚDO TÉCNICO ORIGINAL PARA REESCRITA COMPLETA:
+        CONTEÚDO TÉCNICO ORIGINAL PARA REESCRITA COMPLETE:
         {content}
 
         
@@ -533,19 +533,18 @@ def check_admin_password():
         # Senha correta
         return True
 
-
-
-
-
-# Seletor de Agente na parte superior (acima das abas)
+# ========== SELEÇÃO EXTERNA DE AGENTE ==========
 st.image('macLogo.png', width=300)
 st.title("Conteúdo")
+
 # Botão de logout na sidebar
 if st.button("🚪 Sair", key="logout_btn"):
     for key in ["logged_in", "user", "admin_password_correct", "admin_user"]:
         if key in st.session_state:
             del st.session_state[key]
     st.rerun()
+
+# --- SELEÇÃO DE AGENTE EXTERNA ---
 st.header("🤖 Seletor de Agente")
 
 # Inicializar estado da sessão para agente selecionado
@@ -557,65 +556,132 @@ if "segmentos_selecionados" not in st.session_state:
 # Carregar agentes
 agentes = listar_agentes()
 
-if agentes:
-    # Agrupar agentes por categoria
-    agentes_por_categoria = {}
-    for agente in agentes:
-        categoria = agente.get('categoria', 'Social')
-        if categoria not in agentes_por_categoria:
-            agentes_por_categoria[categoria] = []
-        agentes_por_categoria[categoria].append(agente)
+# Container para seleção de agente
+with st.container():
+    col1, col2, col3 = st.columns([3, 1, 1])
     
-    # Criar opções de seleção com agrupamento
-    agente_options = {}
-    for categoria, agentes_cat in agentes_por_categoria.items():
-        for agente in agentes_cat:
-            agente_completo = obter_agente_com_heranca(agente['_id'])
-            display_name = f"{agente['nome']} ({categoria})"
-            if agente.get('agente_mae_id'):
-                display_name += " 🔗"
-            agente_options[display_name] = agente_completo
-    
-    # Seletor de agente
-    col1, col2 = st.columns([3, 1])
     with col1:
-        agente_selecionado_display = st.selectbox(
-            "Selecione um agente para trabalhar:", 
-            list(agente_options.keys()),
-            key="seletor_agente_global"
-        )
+        if agentes:
+            # Agrupar agentes por categoria
+            agentes_por_categoria = {}
+            for agente in agentes:
+                categoria = agente.get('categoria', 'Social')
+                if categoria not in agentes_por_categoria:
+                    agentes_por_categoria[categoria] = []
+                agentes_por_categoria[categoria].append(agente)
+            
+            # Criar opções de seleção com agrupamento
+            agente_options = {}
+            for categoria, agentes_cat in agentes_por_categoria.items():
+                for agente in agentes_cat:
+                    agente_completo = obter_agente_com_heranca(agente['_id'])
+                    display_name = f"{agente['nome']} ({categoria})"
+                    if agente.get('agente_mae_id'):
+                        display_name += " 🔗"
+                    agente_options[display_name] = agente_completo
+            
+            # Seletor de agente
+            agente_selecionado_display = st.selectbox(
+                "Selecione um agente para trabalhar:", 
+                list(agente_options.keys()),
+                key="seletor_agente_global"
+            )
+            
+            # Botão para aplicar agente
+            if st.button("🔄 Aplicar Agente", key="aplicar_agente"):
+                st.session_state.agente_selecionado = agente_options[agente_selecionado_display]
+                st.success(f"Agente '{agente_selecionado_display}' selecionado!")
+                st.rerun()
+        
+        else:
+            st.info("Nenhum agente disponível. Crie um agente primeiro na aba de Gerenciamento.")
     
     with col2:
-        if st.button("🔄 Aplicar Agente", key="aplicar_agente"):
-            st.session_state.agente_selecionado = agente_options[agente_selecionado_display]
-            st.success(f"Agente '{agente_selecionado_display}' selecionado!")
-            st.rerun()
+        # Botão para limpar agente selecionado
+        if st.session_state.agente_selecionado:
+            if st.button("🗑️ Limpar Agente", key="limpar_agente"):
+                st.session_state.agente_selecionado = None
+                st.session_state.messages = []
+                st.success("Agente removido!")
+                st.rerun()
     
-    # Mostrar agente atual selecionado
-    if st.session_state.agente_selecionado:
-        agente_atual = st.session_state.agente_selecionado
-        st.info(f"**Agente Ativo:** {agente_atual['nome']} ({agente_atual.get('categoria', 'Social')})")
+    with col3:
+        # Botão para recarregar lista
+        if st.button("🔄 Recarregar", key="recarregar_agentes"):
+            st.rerun()
+
+# Mostrar agente atual selecionado
+if st.session_state.agente_selecionado:
+    agente_atual = st.session_state.agente_selecionado
+    
+    # Container para informações do agente
+    with st.container():
+        st.success(f"**✅ Agente Ativo:** {agente_atual['nome']} ({agente_atual.get('categoria', 'Social')})")
         
         # Mostrar informações de herança se aplicável
         if 'agente_mae_id' in agente_atual and agente_atual['agente_mae_id']:
             agente_original = obter_agente(agente_atual['_id'])
             if agente_original and agente_original.get('herdar_elementos'):
                 st.info(f"🔗 Este agente herda {len(agente_original['herdar_elementos'])} elementos do agente mãe")
+        
+        # Mostrar segmentos ativos
+        st.info(f"📋 Segmentos ativos: {', '.join(st.session_state.segmentos_selecionados)}")
+        
+        # Botão para alterar segmentos
+        if st.button("⚙️ Alterar Segmentos", key="alterar_segmentos"):
+            # Toggle para mostrar/ocultar configuração de segmentos
+            if "mostrar_segmentos" not in st.session_state:
+                st.session_state.mostrar_segmentos = True
+            else:
+                st.session_state.mostrar_segmentos = not st.session_state.mostrar_segmentos
+        
+        # Mostrar configuração de segmentos se solicitado
+        if st.session_state.get('mostrar_segmentos', False):
+            with st.expander("🔧 Configurar Segmentos do Agente", expanded=True):
+                st.write("Selecione quais elementos do agente serão utilizados:")
+                
+                col_seg1, col_seg2, col_seg3, col_seg4 = st.columns(4)
+                
+                with col_seg1:
+                    system_prompt_ativado = st.checkbox("System Prompt", 
+                                                      value="system_prompt" in st.session_state.segmentos_selecionados,
+                                                      key="seg_system")
+                with col_seg2:
+                    base_conhecimento_ativado = st.checkbox("Brand Guidelines", 
+                                                          value="base_conhecimento" in st.session_state.segmentos_selecionados,
+                                                          key="seg_base")
+                with col_seg3:
+                    comments_ativado = st.checkbox("Comentários", 
+                                                 value="comments" in st.session_state.segmentos_selecionados,
+                                                 key="seg_comments")
+                with col_seg4:
+                    planejamento_ativado = st.checkbox("Planejamento", 
+                                                     value="planejamento" in st.session_state.segmentos_selecionados,
+                                                     key="seg_planejamento")
+                
+                if st.button("✅ Aplicar Segmentos", key="aplicar_segmentos"):
+                    novos_segmentos = []
+                    if system_prompt_ativado:
+                        novos_segmentos.append("system_prompt")
+                    if base_conhecimento_ativado:
+                        novos_segmentos.append("base_conhecimento")
+                    if comments_ativado:
+                        novos_segmentos.append("comments")
+                    if planejamento_ativado:
+                        novos_segmentos.append("planejamento")
+                    
+                    st.session_state.segmentos_selecionados = novos_segmentos
+                    st.success(f"Segmentos atualizados: {', '.join(novos_segmentos)}")
+                    st.session_state.mostrar_segmentos = False
+                    st.rerun()
+
 else:
-    st.info("Nenhum agente disponível. Crie um agente primeiro na aba de Gerenciamento.")
+    st.warning("⚠️ Nenhum agente selecionado. Selecione um agente acima para começar.")
 
-if st.session_state.agente_selecionado:
-    # Define todos os segmentos como sempre selecionados
-    st.session_state.segmentos_selecionados = ["system_prompt", "base_conhecimento", "comments", "planejamento"]
+st.markdown("---")
 
-
-st.text("")
-st.text("Para navegar pelas abas, clique em uma e pressione as setas para a esquerda ou direita em seu teclado")
-st.text("")
-
-# Menu de abas
+# Menu de abas - AGORA APENAS AS FERRAMENTAS
 tab_chat, tab_gerenciamento, tab_briefing, tab_conteudo, tab_blog, tab_revisao_ortografica, tab_revisao_tecnica, tab_otimizacao = st.tabs([
-
     "💬 Chat", 
     "⚙️ Gerenciar Agentes",
     "📋 Geração de Briefing",
@@ -625,8 +691,6 @@ tab_chat, tab_gerenciamento, tab_briefing, tab_conteudo, tab_blog, tab_revisao_o
     "🔧 Revisão Técnica",
     "🚀 Otimização de Conteúdo"
 ])
-
-
 
 # ========== ABA: CHAT ==========
 with tab_chat:
@@ -2485,7 +2549,7 @@ with tab_revisao_tecnica:
                                 st.success("Conteúdo copiado!")
                     
                     else:
-                        # Se RAG desativado, mostra análise sem reescrita
+                        # Se RAG desativado, mostra análise básica
                         st.warning("⚠️ Modo RAG desativado - mostrando análise básica")
                         st.subheader("📄 Conteúdo Original (Sem Reescrita)")
                         st.markdown(texto_tecnico)
