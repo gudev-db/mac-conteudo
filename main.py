@@ -545,7 +545,7 @@ if st.button("🚪 Sair", key="logout_btn"):
     st.rerun()
 
 # --- SELEÇÃO DE AGENTE EXTERNA ---
-st.header("🤖 Seletor de Agente")
+st.header("🤖 Selecione a base de conhecimento")
 
 # Inicializar estado da sessão para agente selecionado
 if "agente_selecionado" not in st.session_state:
