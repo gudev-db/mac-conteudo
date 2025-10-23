@@ -1958,7 +1958,6 @@ with tab_revisao_tecnica:
         texto_tecnico = st.text_area("Cole o conteúdo técnico para revisão:", height=300,
                                    placeholder="Cole aqui o conteúdo técnico que precisa ser reescrito e corrigido...")
         
-        # CHECKBOX PARA CONTEÚDO SEO
         is_seo_content = st.checkbox("📈 Este é conteúdo para SEO", value=False,
                                    help="Marque se o conteúdo é otimizado para mecanismos de busca")
         
@@ -1983,15 +1982,12 @@ with tab_revisao_tecnica:
             st.metric("Palavras Originais", palavras)
             st.metric("Caracteres", caracteres)
 
-    # Botão de revisão técnica com RAG
     if st.button("🔍 Revisar & Reescrever com RAG", type="primary"):
         if texto_tecnico:
             with st.spinner("Reescrevendo conteúdo técnico com base especializada..."):
                 try:
-                    # APLICA REWRITE TÉCNICO AUTOMÁTICO
                     if reescrever_automatico_rev:
                         
-                        # DECIDE QUAL FUNÇÃO CHAMAR BASEADO NO CHECKBOX SEO
                         if is_seo_content:
                             texto_reescrito = reescrever_com_rag_revisao_SEO(texto_tecnico)
                             st.success("🔄 **Modo SEO Ativo** - Otimizando para mecanismos de busca")
@@ -1999,10 +1995,8 @@ with tab_revisao_tecnica:
                             texto_reescrito = reescrever_com_rag_revisao_NORM(texto_tecnico)
                             st.success("📝 **Modo Normal** - Foco em precisão técnica")
                         
-                        # MOSTRA APENAS O CONTEÚDO REEESCRITO
                         st.subheader("✨ Conteúdo Técnico Reescrito")
                         
-                        # Estatísticas de melhoria
                         palavras_orig = len(texto_tecnico.split())
                         palavras_reesc = len(texto_reescrito.split())
                         
@@ -2015,7 +2009,6 @@ with tab_revisao_tecnica:
                             diff = palavras_reesc - palavras_orig
                             st.metric("Enriquecimento", f"+{diff}" if diff > 0 else diff)
                         
-                        # Indicadores de qualidade
                         st.info("🎯 **Melhorias Aplicadas:**")
                         col_qual1, col_qual2 = st.columns(2)
                         with col_qual1:
@@ -2029,14 +2022,11 @@ with tab_revisao_tecnica:
                             if "Estruturação Lógica" in tipo_correcao:
                                 st.write("✅ **Estrutura:** Fluxo técnico melhorado")
                         
-                        # Adiciona indicador específico para SEO
                         if is_seo_content:
                             st.success("🔍 **Otimizações SEO Aplicadas:** Palavras-chave, meta-descrições e estrutura para mecanismos de busca")
                         
-                        # Conteúdo final reescrito
                         st.markdown(texto_reescrito)
                         
-                        # Botões de ação
                         col_dl, col_copy = st.columns(2)
                         with col_dl:
                             st.download_button(
@@ -2051,7 +2041,6 @@ with tab_revisao_tecnica:
                                 st.success("Conteúdo copiado!")
                     
                     else:
-                        # Se RAG desativado, mostra análise básica
                         st.warning("⚠️ Modo RAG desativado - mostrando análise básica")
                         st.subheader("📄 Conteúdo Original (Sem Reescrita)")
                         st.markdown(texto_tecnico)
@@ -2061,7 +2050,6 @@ with tab_revisao_tecnica:
         else:
             st.warning("Por favor, cole um conteúdo técnico para revisão.")
 
-    # SEÇÃO: FERRAMENTAS AVANÇADAS
     st.header("🛠️ Ferramentas Técnicas Avançadas")
     
     with st.expander("🔍 Consulta Direta à Base Técnica"):
@@ -2079,7 +2067,7 @@ with tab_revisao_tecnica:
                 with st.spinner("Buscando na base de conhecimento..."):
                     try:
                         embedding = get_embedding(pergunta_tecnica)
-                        resultados = astra_client.vector_search(ASTRA_DB_COLLECTION, embedding, limit=limite_resultados)
+                        resultados = astra_client.vector_search(ASTRA_DB_COLLECTION, embedding, limit=10)
                         
                         if resultados:
                             st.success(f"📚 Encontrados {len(resultados)} documentos relevantes:")
@@ -2087,9 +2075,7 @@ with tab_revisao_tecnica:
                             for i, doc in enumerate(resultados, 1):
                                 with st.expander(f"Documento Técnico {i}"):
                                     doc_content = str(doc)
-                                    # Limpa e formata o documento
                                     doc_clean = doc_content.replace('{', '').replace('}', '').replace("'", "").replace('"', '')
-                                    # Divide em linhas para melhor legibilidade
                                     lines = doc_clean.split(',')
                                     for line in lines:
                                         if line.strip():
@@ -2100,26 +2086,7 @@ with tab_revisao_tecnica:
                     except Exception as e:
                         st.error(f"Erro na consulta técnica: {str(e)}")
 
-    # SEÇÃO: EXEMPLOS PRÁTICOS
-    with st.expander("📋 Exemplos de Reescrita Técnica"):
-        st.info("Veja exemplos de como o RAG melhora conteúdo técnico")
-        
-        exemplos = st.selectbox("Selecione um exemplo:", 
-                               ["Controle de Pragas", "Manejo de Solo", "Adubação", "Irrigação"])
-        
-        if exemplos == "Controle de Pragas":
-            col_ex1, col_ex2 = st.columns(2)
-            with col_ex1:
-                st.write("**Antes:** 'Use inseticidas para controlar as pragas'")
-            with col_ex2:
-                st.write("**Depois:** 'Aplicar inseticidas específicos como [produto] na dosagem de [X] ml/ha durante o estágio [Y] do cultivo, seguindo recomendações do [órgão técnico]'")
-        
-        elif exemplos == "Manejo de Solo":
-            col_ex1, col_ex2 = st.columns(2)
-            with col_ex1:
-                st.write("**Antes:** 'Melhore a qualidade do solo'")
-            with col_ex2:
-                st.write("**Depois:** 'Implementar plantio direto com cobertura vegetal de [espécie], realizar análise química trimestral e aplicar correções baseadas nos parâmetros de pH [X] e matéria orgânica [Y]%'")
+
 
 # ========== ABA: OTIMIZAÇÃO DE CONTEÚDO ==========
 with tab_otimizacao:
