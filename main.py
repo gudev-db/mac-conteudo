@@ -20,6 +20,10 @@ ASTRA_DB_API_ENDPOINT = os.getenv('ASTRA_DB_API_ENDPOINT')
 ASTRA_DB_APPLICATION_TOKEN = os.getenv('ASTRA_DB_APPLICATION_TOKEN')
 ASTRA_DB_NAMESPACE = os.getenv('ASTRA_DB_NAMESPACE')
 ASTRA_DB_COLLECTION = os.getenv('ASTRA_DB_COLLECTION')
+# Configuração da API do Perplexity
+perp_api_key = os.getenv("PERP_API_KEY")
+if not perp_api_key:
+    st.error("PERP_API_KEY não encontrada nas variáveis de ambiente")
 
 class AstraDBClient:
     def __init__(self):
@@ -1949,8 +1953,8 @@ with tab_revisao_ortografica:
 
 # ========== ABA: REVISÃO TÉCNICA ==========
 with tab_revisao_tecnica:
-    st.header("🔧 Revisão Técnica com RAG Automático")
-    st.markdown("**Conteúdo técnico é automaticamente REESCRITO e corrigido com base especializada**")
+    st.header("🔧 Revisão Técnica com RAG")
+    st.markdown("**Conteúdo técnico REESCRITO com base especializada**")
     
     col_rev1, col_rev2 = st.columns([2, 1])
     
@@ -1961,16 +1965,34 @@ with tab_revisao_tecnica:
         is_seo_content = st.checkbox("📈 Este é conteúdo para SEO", value=False,
                                    help="Marque se o conteúdo é otimizado para mecanismos de busca")
         
+        st.subheader("🎯 Configurações de Bullet Points")
+        if is_seo_content:
+            bullet_policy = st.radio(
+                "Política de Bullet Points:",
+                ["Manter estrutura original", "Otimizar para SEO", "Remover apenas excessos"],
+                help="Para SEO: bullets são importantes - remova apenas quando conteúdo inteiro for transformado em lista"
+            )
+        else:
+            bullet_policy = st.radio(
+                "Política de Bullet Points:",
+                ["Remover todos os bullets", "Manter bullets existentes", "Converter para texto corrido"],
+                help="Para conteúdo não-SEO: mantenha bullets existentes sem transformar conteúdo todo em lista"
+            )
+        
         tipo_correcao = st.multiselect(
             "Tipos de Correção Aplicadas:",
             ["Precisão Técnica", "Completude Informacional", "Atualização Científica", 
              "Padronização Terminológica", "Estruturação Lógica", "Inclusão de Dados"],
-            default=["Precisão Técnica", "Completude Informacional", "Atualização Científica"]
+            default=["Precisão Técnica", "Atualização Científica", "Completude Informacional"]
         )
     
     with col_rev2:
         st.subheader("⚙️ Configurações RAG")
         reescrever_automatico_rev = st.checkbox("REESCREVER automaticamente com RAG", value=True)
+        
+        st.subheader("🌐 Busca Web")
+        usar_busca_web = st.checkbox("Usar busca web para enriquecer conteúdo", value=False,
+                                   help="Complementa RAG com busca em tempo real para dados atualizados")
         
         incluir_referencias = st.checkbox("Incluir referências técnicas", value=True)
         validar_dados = st.checkbox("Validar dados numéricos", value=True)
@@ -1979,21 +2001,29 @@ with tab_revisao_tecnica:
         if texto_tecnico:
             palavras = len(texto_tecnico.split())
             caracteres = len(texto_tecnico)
+            linhas_bullet = len([line for line in texto_tecnico.split('\n') if line.strip().startswith(('•', '- ', '*'))])
             st.metric("Palavras Originais", palavras)
             st.metric("Caracteres", caracteres)
+            st.metric("Linhas com Bullet", linhas_bullet)
 
     if st.button("🔍 Revisar & Reescrever com RAG", type="primary"):
         if texto_tecnico:
-            with st.spinner("Reescrevendo conteúdo técnico com base especializada..."):
+            with st.spinner("Reescrevendo conteúdo técnico..."):
                 try:
                     if reescrever_automatico_rev:
                         
                         if is_seo_content:
-                            texto_reescrito = reescrever_com_rag_revisao_SEO(texto_tecnico)
+                            texto_reescrito = reescrever_com_rag_revisao_SEO(texto_tecnico, bullet_policy)
                             st.success("🔄 **Modo SEO Ativo** - Otimizando para mecanismos de busca")
                         else:
-                            texto_reescrito = reescrever_com_rag_revisao_NORM(texto_tecnico)
+                            texto_reescrito = reescrever_com_rag_revisao_NORM(texto_tecnico, bullet_policy)
                             st.success("📝 **Modo Normal** - Foco em precisão técnica")
+                        
+                        # APLICA BUSCA WEB SE SOLICITADO
+                        if usar_busca_web and perp_api_key:
+                            with st.spinner("🌐 Enriquecendo conteúdo com busca web..."):
+                                texto_reescrito = enriquecer_com_busca_web(texto_reescrito)
+                                st.success("✅ Conteúdo enriquecido com dados da web")
                         
                         st.subheader("✨ Conteúdo Técnico Reescrito")
                         
@@ -2022,8 +2052,22 @@ with tab_revisao_tecnica:
                             if "Estruturação Lógica" in tipo_correcao:
                                 st.write("✅ **Estrutura:** Fluxo técnico melhorado")
                         
+                        if usar_busca_web:
+                            st.success("🌐 **Busca Web Aplicada:** Dados validados e atualizados com fontes recentes")
+                        
                         if is_seo_content:
-                            st.success("🔍 **Otimizações SEO Aplicadas:** Palavras-chave, meta-descrições e estrutura para mecanismos de busca")
+                            if bullet_policy != "Manter estrutura original":
+                                st.success("📋 **Bullets Otimizados:** Estrutura preservada para SEO")
+                        else:
+                            if bullet_policy == "Remover todos os bullets":
+                                st.success("📋 **Bullets Removidos:** Texto convertido para formato corrido")
+                            elif bullet_policy == "Manter bullets existentes":
+                                st.success("📋 **Bullets Preservados:** Estrutura mantida sem transformar conteúdo em lista")
+                            elif bullet_policy == "Converter para texto corrido":
+                                st.success("📋 **Bullets Convertidos:** Listas transformadas em texto fluido")
+                        
+                        if is_seo_content:
+                            st.success("🔍 **Otimizações SEO Aplicadas:** Palavras-chave e estrutura para mecanismos de busca")
                         
                         st.markdown(texto_reescrito)
                         
@@ -2062,30 +2106,40 @@ with tab_revisao_tecnica:
         with col_cons2:
             limite_resultados = st.number_input("Resultados", min_value=1, max_value=10, value=3)
         
+        col_web_consulta = st.columns(2)
+        with col_web_consulta[0]:
+            usar_web_consulta = st.checkbox("Complementar com busca web", value=False)
+        
         if st.button("🔎 Consultar Base Técnica"):
             if pergunta_tecnica:
                 with st.spinner("Buscando na base de conhecimento..."):
                     try:
                         embedding = get_embedding(pergunta_tecnica)
-                        resultados = astra_client.vector_search(ASTRA_DB_COLLECTION, embedding, limit=10)
+                        resultados = astra_client.vector_search(ASTRA_DB_COLLECTION, embedding, limit=limite_resultados)
                         
-                        if resultados:
-                            st.success(f"📚 Encontrados {len(resultados)} documentos relevantes:")
+                        if resultados or usar_web_consulta:
+                            if resultados:
+                                st.success(f"📚 Encontrados {len(resultados)} documentos relevantes:")
+                                
+                                for i, doc in enumerate(resultados, 1):
+                                    with st.expander(f"Documento Técnico {i}"):
+                                        doc_content = str(doc)
+                                        doc_clean = doc_content.replace('{', '').replace('}', '').replace("'", "").replace('"', '')
+                                        lines = doc_clean.split(',')
+                                        for line in lines:
+                                            if line.strip():
+                                                st.write(f"• {line.strip()}")
                             
-                            for i, doc in enumerate(resultados, 1):
-                                with st.expander(f"Documento Técnico {i}"):
-                                    doc_content = str(doc)
-                                    doc_clean = doc_content.replace('{', '').replace('}', '').replace("'", "").replace('"', '')
-                                    lines = doc_clean.split(',')
-                                    for line in lines:
-                                        if line.strip():
-                                            st.write(f"• {line.strip()}")
+                            if usar_web_consulta and perp_api_key:
+                                with st.spinner("🌐 Buscando informações atualizadas na web..."):
+                                    resultado_web = buscar_perplexity(pergunta_tecnica)
+                                    st.success("🌐 **Informações da Web:**")
+                                    st.markdown(resultado_web)
                         else:
                             st.warning("❌ Nenhum documento técnico encontrado para esta consulta.")
                             
                     except Exception as e:
                         st.error(f"Erro na consulta técnica: {str(e)}")
-
 
 
 # ========== ABA: OTIMIZAÇÃO DE CONTEÚDO ==========
