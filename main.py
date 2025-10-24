@@ -249,7 +249,7 @@ def reescrever_com_rag_revisao_NORM(content: str) -> str:
         7. O agente revisor precisaria entregar o texto exatamente como no original, mas apontando os ajustes técnicos necessários/feitos, sem reescrever tudo automaticamente OU reescrevendo e sinalizando o que foi alterado no texto, mostrando como estava > como ficou > fonte/referência utilizada.
         8. NÃO acrescente informações que tangem o tema do texto original
         9. Mantenha o tamanho do texto original (com um delta de no máximo 5%)
-        10. NÃO USE BULLETS NUNCA
+        10. NÃO USE BULLETS EM TODO O CONTEÚDO. MANTENHA OS ORIGINAIS E O RESTO DEVE VIR EM FORMATO DE PARÁGRAFO
         
         ESTRUTURA OBRIGATÓRIA:
         - Mantenha a estrutura original. O seu papel é REVISAR TECNICAMENTE O CONTEÚDO DE ENTRADA ENRIQUECENDO-O COM O REFERENCIAL TEÓRICO.
