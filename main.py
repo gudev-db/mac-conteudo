@@ -271,106 +271,22 @@ st.set_page_config(
     layout="wide",
     page_title="Conteúdo")
 
-# --- CONEXÃO MONGODB ---
-client = MongoClient("mongodb+srv://gustavoromao3345:RqWFPNOJQfInAW1N@cluster0.5iilj.mongodb.net/auto_doc?retryWrites=true&w=majority&ssl=true&ssl_cert_reqs=CERT_NONE&tlsAllowInvalidCertificates=true")
-db = client['agentes_personalizados']
-collection_agentes = db['agentes']
-collection_conversas = db['conversas']
-collection_usuarios = db['usuarios']
-collection_acesso_agentes = db['acesso_agentes']
-
-# --- Sistema de Autenticação Avançado ---
+# --- Sistema de Autenticação ---
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
 def check_hashes(password, hashed_text):
     return make_hashes(password) == hashed_text
 
-def criar_usuario(username, password, email, role="user"):
-    """Cria um novo usuário no sistema"""
-    if collection_usuarios.find_one({"username": username}):
-        return False, "Usuário já existe"
-    
-    usuario = {
-        "username": username,
-        "password": make_hashes(password),
-        "email": email,
-        "role": role,
-        "ativo": True,
-        "data_criacao": datetime.datetime.now(),
-        "ultimo_login": None
-    }
-    
-    result = collection_usuarios.insert_one(usuario)
-    return True, f"Usuário {username} criado com sucesso"
-
-def verificar_login(username, password):
-    """Verifica as credenciais de login"""
-    usuario = collection_usuarios.find_one({"username": username, "ativo": True})
-    if usuario and check_hashes(password, usuario['password']):
-        # Atualizar último login
-        collection_usuarios.update_one(
-            {"_id": usuario['_id']},
-            {"$set": {"ultimo_login": datetime.datetime.now()}}
-        )
-        return True, usuario
-    return False, None
-
-def obter_usuarios():
-    """Retorna todos os usuários (apenas para admin)"""
-    return list(collection_usuarios.find({"ativo": True}).sort("data_criacao", -1))
-
-def conceder_acesso_agente(usuario_id, agente_id):
-    """Concede acesso a um agente para um usuário"""
-    acesso = {
-        "usuario_id": usuario_id,
-        "agente_id": agente_id,
-        "data_concessao": datetime.datetime.now(),
-        "ativo": True
-    }
-    collection_acesso_agentes.insert_one(acesso)
-
-def revogar_acesso_agente(usuario_id, agente_id):
-    """Revoga acesso a um agente para um usuário"""
-    collection_acesso_agentes.update_one(
-        {"usuario_id": usuario_id, "agente_id": agente_id},
-        {"$set": {"ativo": False}}
-    )
-
-def obter_agentes_disponiveis_usuario(usuario_id):
-    """Retorna os agentes disponíveis para um usuário"""
-    if usuario_id == "admin":
-        return listar_agentes()
-    
-    # Buscar agentes com acesso concedido
-    acessos = list(collection_acesso_agentes.find({
-        "usuario_id": usuario_id, 
-        "ativo": True
-    }))
-    
-    agentes_acesso = []
-    for acesso in acessos:
-        agente = obter_agente(acesso['agente_id'])
-        if agente and agente.get('ativo', True):
-            agentes_acesso.append(agente)
-    
-    return agentes_acesso
-
-def usuario_tem_acesso_agente(usuario_id, agente_id):
-    """Verifica se usuário tem acesso a um agente específico"""
-    if usuario_id == "admin":
-        return True
-    
-    acesso = collection_acesso_agentes.find_one({
-        "usuario_id": usuario_id,
-        "agente_id": agente_id,
-        "ativo": True
-    })
-    return acesso is not None
+# Dados de usuário (em produção, isso deve vir de um banco de dados seguro)
+users = {
+    "admin": make_hashes("senha1234"),  # admin/senha1234
+    "user1": make_hashes("password1"),  # user1/password1
+    "user2": make_hashes("password2")   # user2/password2
+}
 
 def login():
     """Formulário de login"""
-    st.title("🔐 Login - Sistema de Agentes")
     
     with st.form("login_form"):
         username = st.text_input("Usuário")
@@ -378,50 +294,27 @@ def login():
         submit_button = st.form_submit_button("Login")
         
         if submit_button:
-            sucesso, usuario = verificar_login(username, password)
-            if sucesso:
+            if username in users and check_hashes(password, users[username]):
                 st.session_state.logged_in = True
-                st.session_state.user = usuario['username']
-                st.session_state.user_id = str(usuario['_id'])
-                st.session_state.user_role = usuario['role']
-                st.success(f"Login realizado com sucesso! Bem-vindo, {usuario['username']}")
+                st.session_state.user = username
+                st.success("Login realizado com sucesso!")
                 st.rerun()
             else:
                 st.error("Usuário ou senha incorretos")
-    
-    # Opção para criar conta (apenas se não houver usuários no sistema)
-    if collection_usuarios.count_documents({}) == 0:
-        st.info("⚠️ Nenhum usuário cadastrado. Crie uma conta de administrador:")
-        with st.form("criar_admin_form"):
-            admin_user = st.text_input("Usuário Admin")
-            admin_pass = st.text_input("Senha Admin", type="password")
-            admin_email = st.text_input("Email Admin")
-            criar_admin = st.form_submit_button("Criar Administrador")
-            
-            if criar_admin:
-                if admin_user and admin_pass and admin_email:
-                    sucesso, mensagem = criar_usuario(admin_user, admin_pass, admin_email, "admin")
-                    if sucesso:
-                        st.success(mensagem)
-                        st.rerun()
-                    else:
-                        st.error(mensagem)
-                else:
-                    st.error("Preencha todos os campos")
 
 # Verificar se o usuário está logado
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-if "user" not in st.session_state:
-    st.session_state.user = None
-if "user_id" not in st.session_state:
-    st.session_state.user_id = None
-if "user_role" not in st.session_state:
-    st.session_state.user_role = None
 
 if not st.session_state.logged_in:
     login()
     st.stop()
+
+# --- CONEXÃO MONGODB (após login) ---
+client = MongoClient("mongodb+srv://gustavoromao3345:RqWFPNOJQfInAW1N@cluster0.5iilj.mongodb.net/auto_doc?retryWrites=true&w=majority&ssl=true&ssl_cert_reqs=CERT_NONE&tlsAllowInvalidCertificates=true")
+db = client['agentes_personalizados']
+collection_agentes = db['agentes']
+collection_conversas = db['conversas']
 
 # Configuração da API do Gemini
 gemini_api_key = os.getenv("GEM_API_KEY")
@@ -608,20 +501,52 @@ def transcrever_audio_video(arquivo, tipo_arquivo):
     except Exception as e:
         return f"Erro na transcrição: {str(e)}"
 
+# --- Configuração de Autenticação de Administrador ---
+def check_admin_password():
+    """Retorna True se o usuário fornecer a senha de admin correta."""
+    
+    def admin_password_entered():
+        """Verifica se a senha de admin está correta."""
+        if st.session_state["admin_password"] == "senha123":
+            st.session_state["admin_password_correct"] = True
+            st.session_state["admin_user"] = "admin"
+            del st.session_state["admin_password"]
+        else:
+            st.session_state["admin_password_correct"] = False
+
+    if "admin_password_correct" not in st.session_state:
+        # Mostra o input para senha de admin
+        st.text_input(
+            "Senha de Administrador", 
+            type="password", 
+            on_change=admin_password_entered, 
+            key="admin_password"
+        )
+        return False
+    elif not st.session_state["admin_password_correct"]:
+        # Senha incorreta, mostra input + erro
+        st.text_input(
+            "Senha de Administrador", 
+            type="password", 
+            on_change=admin_password_entered, 
+            key="admin_password"
+        )
+        st.error("😕 Senha de administrador incorreta")
+        return False
+    else:
+        # Senha correta
+        return True
+
 # ========== SELEÇÃO EXTERNA DE AGENTE ==========
 st.image('macLogo.png', width=300)
 st.title("Conteúdo")
 
 # Botão de logout na sidebar
 if st.button("🚪 Sair", key="logout_btn"):
-    for key in ["logged_in", "user", "user_id", "user_role", "admin_password_correct", "admin_user", "agente_selecionado", "segmentos_selecionados", "messages"]:
+    for key in ["logged_in", "user", "admin_password_correct", "admin_user"]:
         if key in st.session_state:
             del st.session_state[key]
     st.rerun()
-
-# Mostrar informações do usuário
-st.sidebar.markdown(f"### 👤 Usuário: {st.session_state.user}")
-st.sidebar.markdown(f"### 🎯 Perfil: {st.session_state.user_role}")
 
 # --- SELEÇÃO DE AGENTE EXTERNA ---
 st.header("🤖 Selecione a base de conhecimento")
@@ -632,18 +557,18 @@ if "agente_selecionado" not in st.session_state:
 if "segmentos_selecionados" not in st.session_state:
     st.session_state.segmentos_selecionados = ["system_prompt", "base_conhecimento", "comments", "planejamento"]
 
-# Carregar agentes disponíveis para o usuário
-agentes_disponiveis = obter_agentes_disponiveis_usuario(st.session_state.user_id)
+# Carregar agentes
+agentes = listar_agentes()
 
 # Container para seleção de agente
 with st.container():
     col1, col2, col3 = st.columns([3, 1, 1])
     
     with col1:
-        if agentes_disponiveis:
+        if agentes:
             # Agrupar agentes por categoria
             agentes_por_categoria = {}
-            for agente in agentes_disponiveis:
+            for agente in agentes:
                 categoria = agente.get('categoria', 'Social')
                 if categoria not in agentes_por_categoria:
                     agentes_por_categoria[categoria] = []
@@ -673,7 +598,7 @@ with st.container():
                 st.rerun()
         
         else:
-            st.info("Nenhum agente disponível para seu usuário. Entre em contato com o administrador.")
+            st.info("Nenhum agente disponível. Crie um agente primeiro na aba de Gerenciamento.")
     
     with col2:
         # Botão para limpar agente selecionado
@@ -728,7 +653,7 @@ if st.session_state.agente_selecionado:
                 with col_seg2:
                     base_conhecimento_ativado = st.checkbox("Brand Guidelines", 
                                                           value="base_conhecimento" in st.session_state.segmentos_selecionados,
-                                                      key="seg_base")
+                                                          key="seg_base")
                 with col_seg3:
                     comments_ativado = st.checkbox("Comentários", 
                                                  value="comments" in st.session_state.segmentos_selecionados,
@@ -760,15 +685,14 @@ else:
 st.markdown("---")
 
 # Menu de abas - AGORA APENAS AS FERRAMENTAS
-tab_chat, tab_gerenciamento, tab_conteudo, tab_blog, tab_revisao_ortografica, tab_revisao_tecnica, tab_otimizacao, tab_usuarios = st.tabs([
+tab_chat, tab_gerenciamento, tab_conteudo, tab_blog, tab_revisao_ortografica, tab_revisao_tecnica, tab_otimizacao = st.tabs([
     "💬 Chat", 
     "⚙️ Gerenciar Agentes",
     "✨ Geração de Conteúdo", 
     "🌱 Geração de Conteúdo Blog",
     "📝 Revisão Ortográfica",
     "🔧 Revisão Técnica",
-    "🚀 Otimização de Conteúdo",
-    "👥 Gerenciar Usuários"
+    "🚀 Otimização de Conteúdo"
 ])
 
 # ========== ABA: CHAT ==========
@@ -829,42 +753,11 @@ with tab_chat:
 with tab_gerenciamento:
     st.header("⚙️ Gerenciamento de Agentes")
     
-    # Verificar se usuário é admin
-    if st.session_state.user_role != "admin":
-        st.warning("⛔ Acesso restrito a administradores")
-        st.info("Apenas usuários com perfil de administrador podem gerenciar agentes.")
+    # Verificar autenticação apenas para gerenciamento
+    if st.session_state.user != "admin":
+        st.warning("Acesso restrito a administradores")
     else:
         # Verificar senha de admin
-        def check_admin_password():
-            """Verifica a senha de administrador"""
-            def admin_password_entered():
-                if st.session_state["admin_password"] == "senha123":
-                    st.session_state["admin_password_correct"] = True
-                    st.session_state["admin_user"] = "admin"
-                    del st.session_state["admin_password"]
-                else:
-                    st.session_state["admin_password_correct"] = False
-
-            if "admin_password_correct" not in st.session_state:
-                st.text_input(
-                    "Senha de Administrador", 
-                    type="password", 
-                    on_change=admin_password_entered, 
-                    key="admin_password"
-                )
-                return False
-            elif not st.session_state["admin_password_correct"]:
-                st.text_input(
-                    "Senha de Administrador", 
-                    type="password", 
-                    on_change=admin_password_entered, 
-                    key="admin_password"
-                )
-                st.error("😕 Senha de administrador incorreta")
-                return False
-            else:
-                return True
-
         if not check_admin_password():
             st.warning("Digite a senha de administrador")
         else:
@@ -2120,17 +2013,17 @@ with tab_revisao_tecnica:
                     if reescrever_automatico_rev:
                         
                         if is_seo_content:
-                            texto_reescrito = reescrever_com_rag_revisao_SEO(texto_tecnico)
+                            texto_reescrito = reescrever_com_rag_revisao_SEO(texto_tecnico, bullet_policy)
                             st.success("🔄 **Modo SEO Ativo** - Otimizando para mecanismos de busca")
                         else:
-                            texto_reescrito = reescrever_com_rag_revisao_NORM(texto_tecnico)
+                            texto_reescrito = reescrever_com_rag_revisao_NORM(texto_tecnico, bullet_policy)
                             st.success("📝 **Modo Normal** - Foco em precisão técnica")
                         
                         # APLICA BUSCA WEB SE SOLICITADO
                         if usar_busca_web and perp_api_key:
                             with st.spinner("🌐 Enriquecendo conteúdo com busca web..."):
-                                # Função placeholder para busca web
-                                st.info("Funcionalidade de busca web será implementada aqui")
+                                texto_reescrito = enriquecer_com_busca_web(texto_reescrito)
+                                st.success("✅ Conteúdo enriquecido com dados da web")
                         
                         st.subheader("✨ Conteúdo Técnico Reescrito")
                         
@@ -2239,7 +2132,9 @@ with tab_revisao_tecnica:
                             
                             if usar_web_consulta and perp_api_key:
                                 with st.spinner("🌐 Buscando informações atualizadas na web..."):
-                                    st.info("Funcionalidade de busca web será implementada aqui")
+                                    resultado_web = buscar_perplexity(pergunta_tecnica)
+                                    st.success("🌐 **Informações da Web:**")
+                                    st.markdown(resultado_web)
                         else:
                             st.warning("❌ Nenhum documento técnico encontrado para esta consulta.")
                             
@@ -2354,172 +2249,6 @@ with tab_otimizacao:
                     st.error(f"Erro na otimização: {str(e)}")
         else:
             st.warning("Por favor, cole um conteúdo para otimização.")
-
-# ========== ABA: GERENCIAR USUÁRIOS ==========
-with tab_usuarios:
-    st.header("👥 Gerenciar Usuários e Acessos")
-    
-    # Verificar se usuário é admin
-    if st.session_state.user_role != "admin":
-        st.warning("⛔ Acesso restrito a administradores")
-        st.info("Apenas usuários com perfil de administrador podem gerenciar usuários e acessos.")
-    else:
-        # Verificar senha de admin
-        def check_admin_password_usuarios():
-            """Verifica a senha de administrador para gerenciamento de usuários"""
-            def admin_password_entered_usuarios():
-                if st.session_state["admin_password_usuarios"] == "senha123":
-                    st.session_state["admin_password_correct_usuarios"] = True
-                    del st.session_state["admin_password_usuarios"]
-                else:
-                    st.session_state["admin_password_correct_usuarios"] = False
-
-            if "admin_password_correct_usuarios" not in st.session_state:
-                st.text_input(
-                    "Senha de Administrador para Gerenciar Usuários", 
-                    type="password", 
-                    on_change=admin_password_entered_usuarios, 
-                    key="admin_password_usuarios"
-                )
-                return False
-            elif not st.session_state["admin_password_correct_usuarios"]:
-                st.text_input(
-                    "Senha de Administrador para Gerenciar Usuários", 
-                    type="password", 
-                    on_change=admin_password_entered_usuarios, 
-                    key="admin_password_usuarios"
-                )
-                st.error("😕 Senha de administrador incorreta")
-                return False
-            else:
-                return True
-
-        if not check_admin_password_usuarios():
-            st.warning("Digite a senha de administrador para gerenciar usuários")
-        else:
-            # Subabas para gerenciamento de usuários
-            sub_tab_usuarios, sub_tab_acessos = st.tabs(["Gerenciar Usuários", "Gerenciar Acessos a Agentes"])
-            
-            with sub_tab_usuarios:
-                st.subheader("👥 Gerenciar Usuários do Sistema")
-                
-                # Formulário para criar novo usuário
-                with st.form("form_criar_usuario"):
-                    st.write("### Criar Novo Usuário")
-                    novo_username = st.text_input("Nome de Usuário:")
-                    novo_email = st.text_input("Email:")
-                    nova_senha = st.text_input("Senha", type="password")
-                    novo_role = st.selectbox("Perfil:", ["user", "admin"])
-                    
-                    criar_usuario_btn = st.form_submit_button("Criar Usuário")
-                    
-                    if criar_usuario_btn:
-                        if novo_username and nova_senha and novo_email:
-                            sucesso, mensagem = criar_usuario(novo_username, nova_senha, novo_email, novo_role)
-                            if sucesso:
-                                st.success(mensagem)
-                                st.rerun()
-                            else:
-                                st.error(mensagem)
-                        else:
-                            st.error("Preencha todos os campos obrigatórios")
-                
-                # Lista de usuários existentes
-                st.write("### Usuários Cadastrados")
-                usuarios = obter_usuarios()
-                
-                if usuarios:
-                    for usuario in usuarios:
-                        col_user1, col_user2, col_user3, col_user4 = st.columns([2, 2, 1, 1])
-                        
-                        with col_user1:
-                            st.write(f"**{usuario['username']}**")
-                            st.caption(f"Email: {usuario.get('email', 'N/A')}")
-                        
-                        with col_user2:
-                            st.write(f"Perfil: {usuario['role']}")
-                            st.caption(f"Criado em: {usuario['data_criacao'].strftime('%d/%m/%Y')}")
-                        
-                        with col_user3:
-                            if usuario['username'] != st.session_state.user:  # Não permitir desativar a si mesmo
-                                if st.button("Desativar", key=f"desativar_{usuario['_id']}"):
-                                    collection_usuarios.update_one(
-                                        {"_id": usuario['_id']},
-                                        {"$set": {"ativo": False}}
-                                    )
-                                    st.success(f"Usuário {usuario['username']} desativado!")
-                                    st.rerun()
-                        
-                        with col_user4:
-                            # Botão para resetar senha
-                            if st.button("Resetar Senha", key=f"reset_{usuario['_id']}"):
-                                # Em produção, isso enviaria um email para reset de senha
-                                st.info(f"Funcionalidade de reset de senha para {usuario['username']}")
-                        
-                        st.divider()
-                else:
-                    st.info("Nenhum usuário cadastrado no sistema.")
-            
-            with sub_tab_acessos:
-                st.subheader("🔐 Gerenciar Acessos a Agentes")
-                
-                # Selecionar usuário
-                usuarios = obter_usuarios()
-                if usuarios:
-                    usuario_options = {f"{usuario['username']} ({usuario['role']})": usuario for usuario in usuarios if usuario['username'] != 'admin'}
-                    
-                    if usuario_options:
-                        usuario_selecionado_display = st.selectbox(
-                            "Selecione o usuário:",
-                            list(usuario_options.keys())
-                        )
-                        
-                        usuario_selecionado = usuario_options[usuario_selecionado_display]
-                        
-                        # Mostrar agentes atualmente acessíveis
-                        st.write(f"### Agentes Acessíveis para {usuario_selecionado['username']}")
-                        
-                        agentes_acessiveis = obter_agentes_disponiveis_usuario(str(usuario_selecionado['_id']))
-                        agentes_todos = listar_agentes()
-                        
-                        if agentes_acessiveis:
-                            st.success(f"Usuário tem acesso a {len(agentes_acessiveis)} agente(s)")
-                            for agente in agentes_acessiveis:
-                                col_acc1, col_acc2 = st.columns([3, 1])
-                                with col_acc1:
-                                    st.write(f"• {agente['nome']} ({agente.get('categoria', 'Social')})")
-                                with col_acc2:
-                                    if st.button("Revogar Acesso", key=f"revogar_{agente['_id']}"):
-                                        revogar_acesso_agente(str(usuario_selecionado['_id']), agente['_id'])
-                                        st.success(f"Acesso revogado para {agente['nome']}!")
-                                        st.rerun()
-                        else:
-                            st.warning("Usuário não tem acesso a nenhum agente")
-                        
-                        # Conceder acesso a novos agentes
-                        st.write("### Conceder Acesso a Novos Agentes")
-                        
-                        # Filtrar agentes que o usuário ainda não tem acesso
-                        agentes_sem_acesso = [agente for agente in agentes_todos if not usuario_tem_acesso_agente(str(usuario_selecionado['_id']), agente['_id'])]
-                        
-                        if agentes_sem_acesso:
-                            agente_para_conceder = st.selectbox(
-                                "Selecione agente para conceder acesso:",
-                                [f"{agente['nome']} ({agente.get('categoria', 'Social')})" for agente in agentes_sem_acesso]
-                            )
-                            
-                            if st.button("Conceder Acesso"):
-                                agente_selecionado = agentes_sem_acesso[[f"{agente['nome']} ({agente.get('categoria', 'Social')})" for agente in agentes_sem_acesso].index(agente_para_conceder)]
-                                conceder_acesso_agente(str(usuario_selecionado['_id']), agente_selecionado['_id'])
-                                st.success(f"Acesso concedido para {agente_selecionado['nome']}!")
-                                st.rerun()
-                        else:
-                            st.info("Usuário já tem acesso a todos os agentes disponíveis")
-                    
-                    else:
-                        st.info("Nenhum usuário disponível para gerenciamento de acessos (exceto admin)")
-                else:
-                    st.info("Nenhum usuário cadastrado no sistema.")
 
 # --- Estilização ---
 st.markdown("""
