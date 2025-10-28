@@ -315,6 +315,91 @@ client = MongoClient("mongodb+srv://gustavoromao3345:RqWFPNOJQfInAW1N@cluster0.5
 db = client['agentes_personalizados']
 collection_agentes = db['agentes']
 collection_conversas = db['conversas']
+collection_usuarios = db['usuarios']  # Nova coleção para usuários
+
+# --- Sistema de Gerenciamento de Usuários e Permissões ---
+def criar_usuario(email, senha, nome):
+    """Cria um novo usuário no banco de dados"""
+    if collection_usuarios.find_one({"email": email}):
+        return False, "Usuário já existe"
+    
+    senha_hash = make_hashes(senha)
+    
+    novo_usuario = {
+        "email": email,
+        "senha": senha_hash,
+        "nome": nome,
+        "data_criacao": datetime.datetime.now(),
+        "ultimo_login": None,
+        "ativo": True,
+        "tipo": "usuario"  # admin ou usuario
+    }
+    
+    try:
+        collection_usuarios.insert_one(novo_usuario)
+        return True, "Usuário criado com sucesso"
+    except Exception as e:
+        return False, f"Erro ao criar usuário: {str(e)}"
+
+def verificar_login(email, senha):
+    """Verifica as credenciais do usuário"""
+    usuario = collection_usuarios.find_one({"email": email})
+    
+    if not usuario:
+        return False, None, "Usuário não encontrado"
+    
+    if not usuario.get("ativo", True):
+        return False, None, "Usuário desativado"
+    
+    senha_hash = make_hashes(senha)
+    
+    if usuario["senha"] == senha_hash:
+        collection_usuarios.update_one(
+            {"_id": usuario["_id"]},
+            {"$set": {"ultimo_login": datetime.datetime.now()}}
+        )
+        return True, usuario, "Login bem-sucedido"
+    else:
+        return False, None, "Senha incorreta"
+
+def obter_usuario_atual():
+    """Obtém informações do usuário atual"""
+    if "user" in st.session_state:
+        usuario = collection_usuarios.find_one({"email": st.session_state.user})
+        return usuario
+    return None
+
+def usuario_pode_acessar_agente(agente_id, usuario_atual):
+    """Verifica se o usuário tem permissão para acessar um agente específico"""
+    if not usuario_atual:
+        return False
+    
+    # Admin tem acesso a todos os agentes
+    if usuario_atual.get("tipo") == "admin":
+        return True
+    
+    # Usuário comum só tem acesso aos agentes que criou
+    agente = collection_agentes.find_one({"_id": ObjectId(agente_id)})
+    if agente and agente.get("criado_por") == usuario_atual["email"]:
+        return True
+    
+    return False
+
+def usuario_pode_editar_agente(agente_id, usuario_atual):
+    """Verifica se o usuário tem permissão para editar um agente específico"""
+    if not usuario_atual:
+        return False
+    
+    # Admin pode editar todos os agentes
+    if usuario_atual.get("tipo") == "admin":
+        return True
+    
+    # Usuário comum só pode editar os agentes que criou
+    agente = collection_agentes.find_one({"_id": ObjectId(agente_id)})
+    if agente and agente.get("criado_por") == usuario_atual["email"]:
+        return True
+    
+    return False
 
 # Configuração da API do Gemini
 gemini_api_key = os.getenv("GEM_API_KEY")
@@ -329,6 +414,8 @@ modelo_texto = genai.GenerativeModel("gemini-2.5-flash")
 # --- Funções CRUD para Agentes ---
 def criar_agente(nome, system_prompt, base_conhecimento, comments, planejamento, categoria, agente_mae_id=None, herdar_elementos=None):
     """Cria um novo agente no MongoDB"""
+    usuario_atual = obter_usuario_atual()
+    
     agente = {
         "nome": nome,
         "system_prompt": system_prompt,
@@ -339,35 +426,77 @@ def criar_agente(nome, system_prompt, base_conhecimento, comments, planejamento,
         "agente_mae_id": agente_mae_id,
         "herdar_elementos": herdar_elementos or [],
         "ativo": True,
-        "data_criacao": datetime.datetime.now()
+        "data_criacao": datetime.datetime.now(),
+        "criado_por": usuario_atual["email"] if usuario_atual else "admin"  # Campo para controle de acesso
     }
     result = collection_agentes.insert_one(agente)
     return result.inserted_id
 
 def listar_agentes():
-    """Retorna todos os agentes ativos"""
-    return list(collection_agentes.find({"ativo": True}).sort("data_criacao", -1))
+    """Retorna todos os agentes que o usuário atual pode acessar"""
+    usuario_atual = obter_usuario_atual()
+    
+    if not usuario_atual:
+        return []
+    
+    # Admin vê todos os agentes ativos
+    if usuario_atual.get("tipo") == "admin":
+        return list(collection_agentes.find({"ativo": True}).sort("data_criacao", -1))
+    
+    # Usuário comum vê apenas os agentes que criou
+    return list(collection_agentes.find({
+        "ativo": True, 
+        "criado_por": usuario_atual["email"]
+    }).sort("data_criacao", -1))
 
 def listar_agentes_para_heranca(agente_atual_id=None):
     """Retorna todos os agentes ativos que podem ser usados como mãe"""
+    usuario_atual = obter_usuario_atual()
+    
+    if not usuario_atual:
+        return []
+    
     query = {"ativo": True}
+    
+    # Admin pode usar qualquer agente como mãe
+    if usuario_atual.get("tipo") != "admin":
+        # Usuário comum só pode usar seus próprios agentes como mãe
+        query["criado_por"] = usuario_atual["email"]
+    
     if agente_atual_id:
         # Excluir o próprio agente da lista de opções para evitar auto-herança
         if isinstance(agente_atual_id, str):
             agente_atual_id = ObjectId(agente_atual_id)
         query["_id"] = {"$ne": agente_atual_id}
+    
     return list(collection_agentes.find(query).sort("data_criacao", -1))
 
 def obter_agente(agente_id):
     """Obtém um agente específico pelo ID"""
     if isinstance(agente_id, str):
         agente_id = ObjectId(agente_id)
-    return collection_agentes.find_one({"_id": agente_id})
+    
+    usuario_atual = obter_usuario_atual()
+    agente = collection_agentes.find_one({"_id": agente_id})
+    
+    # Verificar permissão de acesso
+    if agente and usuario_pode_acessar_agente(agente_id, usuario_atual):
+        return agente
+    
+    return None
 
 def atualizar_agente(agente_id, nome, system_prompt, base_conhecimento, comments, planejamento, categoria, agente_mae_id=None, herdar_elementos=None):
     """Atualiza um agente existente"""
+    usuario_atual = obter_usuario_atual()
+    
+    # Verificar permissão de edição
+    if not usuario_pode_editar_agente(agente_id, usuario_atual):
+        st.error("Você não tem permissão para editar este agente")
+        return None
+    
     if isinstance(agente_id, str):
         agente_id = ObjectId(agente_id)
+    
     return collection_agentes.update_one(
         {"_id": agente_id},
         {
@@ -386,8 +515,16 @@ def atualizar_agente(agente_id, nome, system_prompt, base_conhecimento, comments
 
 def desativar_agente(agente_id):
     """Desativa um agente (soft delete)"""
+    usuario_atual = obter_usuario_atual()
+    
+    # Verificar permissão de edição
+    if not usuario_pode_editar_agente(agente_id, usuario_atual):
+        st.error("Você não tem permissão para desativar este agente")
+        return None
+    
     if isinstance(agente_id, str):
         agente_id = ObjectId(agente_id)
+    
     return collection_agentes.update_one(
         {"_id": agente_id},
         {"$set": {"ativo": False}}
@@ -422,11 +559,15 @@ def salvar_conversa(agente_id, mensagens, segmentos_utilizados=None):
     """Salva uma conversa no histórico"""
     if isinstance(agente_id, str):
         agente_id = ObjectId(agente_id)
+    
+    usuario_atual = obter_usuario_atual()
+    
     conversa = {
         "agente_id": agente_id,
         "mensagens": mensagens,
         "segmentos_utilizados": segmentos_utilizados,
-        "data_criacao": datetime.datetime.now()
+        "data_criacao": datetime.datetime.now(),
+        "usuario_email": usuario_atual["email"] if usuario_atual else "desconhecido"
     }
     return collection_conversas.insert_one(conversa)
 
@@ -434,6 +575,13 @@ def obter_conversas(agente_id, limite=10):
     """Obtém o histórico de conversas de um agente"""
     if isinstance(agente_id, str):
         agente_id = ObjectId(agente_id)
+    
+    usuario_atual = obter_usuario_atual()
+    
+    # Verificar se o usuário tem acesso ao agente
+    if not usuario_pode_acessar_agente(agente_id, usuario_atual):
+        return []
+    
     return list(collection_conversas.find(
         {"agente_id": agente_id}
     ).sort("data_criacao", -1).limit(limite))
@@ -653,7 +801,7 @@ if st.session_state.agente_selecionado:
                 with col_seg2:
                     base_conhecimento_ativado = st.checkbox("Brand Guidelines", 
                                                           value="base_conhecimento" in st.session_state.segmentos_selecionados,
-                                                          key="seg_base")
+                                                      key="seg_base")
                 with col_seg3:
                     comments_ativado = st.checkbox("Comentários", 
                                                  value="comments" in st.session_state.segmentos_selecionados,
@@ -685,14 +833,15 @@ else:
 st.markdown("---")
 
 # Menu de abas - AGORA APENAS AS FERRAMENTAS
-tab_chat, tab_gerenciamento, tab_conteudo, tab_blog, tab_revisao_ortografica, tab_revisao_tecnica, tab_otimizacao = st.tabs([
+tab_chat, tab_gerenciamento, tab_conteudo, tab_blog, tab_revisao_ortografica, tab_revisao_tecnica, tab_otimizacao, tab_usuarios = st.tabs([
     "💬 Chat", 
     "⚙️ Gerenciar Agentes",
     "✨ Geração de Conteúdo", 
     "🌱 Geração de Conteúdo Blog",
     "📝 Revisão Ortográfica",
     "🔧 Revisão Técnica",
-    "🚀 Otimização de Conteúdo"
+    "🚀 Otimização de Conteúdo",
+    "👥 Gerenciar Usuários"
 ])
 
 # ========== ABA: CHAT ==========
@@ -954,6 +1103,9 @@ with tab_gerenciamento:
                         with st.container():
                             st.write(f"**{agente['nome']} - {agente.get('categoria', 'Social')} - Criado em {agente['data_criacao'].strftime('%d/%m/%Y')}**")
                             
+                            # Mostrar criador do agente
+                            st.write(f"**👤 Criado por:** {agente.get('criado_por', 'admin')}")
+                            
                             # Mostrar informações de herança
                             if agente.get('agente_mae_id'):
                                 agente_mae = obter_agente(agente['agente_mae_id'])
@@ -984,6 +1136,88 @@ with tab_gerenciamento:
                 else:
                     st.info("Nenhum agente encontrado para esta categoria.")
 
+# ========== ABA: GERENCIAMENTO DE USUÁRIOS ==========
+with tab_usuarios:
+    st.header("👥 Gerenciamento de Usuários")
+    
+    # Verificar se é admin
+    if st.session_state.user != "admin":
+        st.warning("Acesso restrito a administradores")
+    else:
+        if not check_admin_password():
+            st.warning("Digite a senha de administrador")
+        else:
+            sub_tab_usuarios1, sub_tab_usuarios2 = st.tabs(["Criar Usuário", "Gerenciar Usuários"])
+            
+            with sub_tab_usuarios1:
+                st.subheader("Criar Novo Usuário")
+                
+                with st.form("form_criar_usuario"):
+                    nome_usuario = st.text_input("Nome Completo:")
+                    email_usuario = st.text_input("Email:")
+                    senha_usuario = st.text_input("Senha:", type="password")
+                    tipo_usuario = st.selectbox("Tipo de Usuário:", ["usuario", "admin"])
+                    
+                    submitted = st.form_submit_button("Criar Usuário")
+                    if submitted:
+                        if nome_usuario and email_usuario and senha_usuario:
+                            sucesso, mensagem = criar_usuario(email_usuario, senha_usuario, nome_usuario)
+                            if sucesso:
+                                # Atualizar tipo se necessário
+                                if tipo_usuario == "admin":
+                                    collection_usuarios.update_one(
+                                        {"email": email_usuario},
+                                        {"$set": {"tipo": "admin"}}
+                                    )
+                                st.success(mensagem)
+                            else:
+                                st.error(mensagem)
+                        else:
+                            st.error("Todos os campos são obrigatórios!")
+            
+            with sub_tab_usuarios2:
+                st.subheader("Usuários Cadastrados")
+                
+                usuarios = list(collection_usuarios.find({}).sort("data_criacao", -1))
+                
+                if usuarios:
+                    for usuario in usuarios:
+                        with st.container():
+                            col_info, col_acoes = st.columns([3, 1])
+                            
+                            with col_info:
+                                st.write(f"**👤 {usuario['nome']}**")
+                                st.write(f"✉️ {usuario['email']}")
+                                st.write(f"🔧 Tipo: {usuario.get('tipo', 'usuario')}")
+                                st.write(f"📅 Criado em: {usuario['data_criacao'].strftime('%d/%m/%Y %H:%M')}")
+                                if usuario.get('ultimo_login'):
+                                    st.write(f"🕒 Último login: {usuario['ultimo_login'].strftime('%d/%m/%Y %H:%M')}")
+                                st.write(f"✅ Status: {'Ativo' if usuario.get('ativo', True) else 'Inativo'}")
+                            
+                            with col_acoes:
+                                if usuario['email'] != "admin":  # Não permitir editar o admin principal
+                                    if st.button("🔄 Alterar Tipo", key=f"tipo_{usuario['_id']}"):
+                                        novoTipo = "admin" if usuario.get('tipo') == "usuario" else "usuario"
+                                        collection_usuarios.update_one(
+                                            {"_id": usuario["_id"]},
+                                            {"$set": {"tipo": novoTipo}}
+                                        )
+                                        st.success(f"Tipo alterado para {novoTipo}!")
+                                        st.rerun()
+                                    
+                                    if st.button("❌ Desativar" if usuario.get('ativo', True) else "✅ Ativar", 
+                                               key=f"status_{usuario['_id']}"):
+                                        novoStatus = not usuario.get('ativo', True)
+                                        collection_usuarios.update_one(
+                                            {"_id": usuario["_id"]},
+                                            {"$set": {"ativo": novoStatus}}
+                                        )
+                                        st.success(f"Usuário {'desativado' if not novoStatus else 'ativado'}!")
+                                        st.rerun()
+                            
+                            st.divider()
+                else:
+                    st.info("Nenhum usuário cadastrado além do admin.")
 
 # ========== ABA: GERAÇÃO DE CONTEÚDO ==========
 with tab_conteudo:
@@ -2013,17 +2247,11 @@ with tab_revisao_tecnica:
                     if reescrever_automatico_rev:
                         
                         if is_seo_content:
-                            texto_reescrito = reescrever_com_rag_revisao_SEO(texto_tecnico, bullet_policy)
+                            texto_reescrito = reescrever_com_rag_revisao_SEO(texto_tecnico)
                             st.success("🔄 **Modo SEO Ativo** - Otimizando para mecanismos de busca")
                         else:
-                            texto_reescrito = reescrever_com_rag_revisao_NORM(texto_tecnico, bullet_policy)
+                            texto_reescrito = reescrever_com_rag_revisao_NORM(texto_tecnico)
                             st.success("📝 **Modo Normal** - Foco em precisão técnica")
-                        
-                        # APLICA BUSCA WEB SE SOLICITADO
-                        if usar_busca_web and perp_api_key:
-                            with st.spinner("🌐 Enriquecendo conteúdo com busca web..."):
-                                texto_reescrito = enriquecer_com_busca_web(texto_reescrito)
-                                st.success("✅ Conteúdo enriquecido com dados da web")
                         
                         st.subheader("✨ Conteúdo Técnico Reescrito")
                         
@@ -2051,9 +2279,6 @@ with tab_revisao_tecnica:
                                 st.write("✅ **Atualização:** Dados atualizados com base recente")
                             if "Estruturação Lógica" in tipo_correcao:
                                 st.write("✅ **Estrutura:** Fluxo técnico melhorado")
-                        
-                        if usar_busca_web:
-                            st.success("🌐 **Busca Web Aplicada:** Dados validados e atualizados com fontes recentes")
                         
                         if is_seo_content:
                             if bullet_policy != "Manter estrutura original":
@@ -2131,16 +2356,12 @@ with tab_revisao_tecnica:
                                                 st.write(f"• {line.strip()}")
                             
                             if usar_web_consulta and perp_api_key:
-                                with st.spinner("🌐 Buscando informações atualizadas na web..."):
-                                    resultado_web = buscar_perplexity(pergunta_tecnica)
-                                    st.success("🌐 **Informações da Web:**")
-                                    st.markdown(resultado_web)
+                                st.warning("Funcionalidade de busca web temporariamente indisponível")
                         else:
                             st.warning("❌ Nenhum documento técnico encontrado para esta consulta.")
                             
                     except Exception as e:
                         st.error(f"Erro na consulta técnica: {str(e)}")
-
 
 # ========== ABA: OTIMIZAÇÃO DE CONTEÚDO ==========
 with tab_otimizacao:
