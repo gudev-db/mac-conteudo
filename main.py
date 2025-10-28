@@ -281,9 +281,14 @@ def check_hashes(password, hashed_text):
 # Dados de usuário (em produção, isso deve vir de um banco de dados seguro)
 users = {
     "admin": make_hashes("senha1234"),  # admin/senha1234
-    "user1": make_hashes("password1"),  # user1/password1
-    "user2": make_hashes("password2")   # user2/password2
+    "SYN": make_hashes("senha1"),  # user1/password1
+    "SME": make_hashes("senha2"),   # user2/password2
+    "Enterprise": make_hashes("senha3")   # user2/password2
 }
+
+def get_current_user():
+    """Retorna o usuário atual da sessão"""
+    return st.session_state.get('user', 'unknown')
 
 def login():
     """Formulário de login"""
@@ -339,35 +344,65 @@ def criar_agente(nome, system_prompt, base_conhecimento, comments, planejamento,
         "agente_mae_id": agente_mae_id,
         "herdar_elementos": herdar_elementos or [],
         "ativo": True,
-        "data_criacao": datetime.datetime.now()
+        "data_criacao": datetime.datetime.now(),
+        "criado_por": get_current_user()  # NOVO CAMPO
     }
     result = collection_agentes.insert_one(agente)
     return result.inserted_id
 
 def listar_agentes():
-    """Retorna todos os agentes ativos"""
-    return list(collection_agentes.find({"ativo": True}).sort("data_criacao", -1))
+    """Retorna todos os agentes ativos do usuário atual ou todos se admin"""
+    current_user = get_current_user()
+    if current_user == "admin":
+        return list(collection_agentes.find({"ativo": True}).sort("data_criacao", -1))
+    else:
+        return list(collection_agentes.find({
+            "ativo": True, 
+            "criado_por": current_user
+        }).sort("data_criacao", -1))
 
 def listar_agentes_para_heranca(agente_atual_id=None):
     """Retorna todos os agentes ativos que podem ser usados como mãe"""
+    current_user = get_current_user()
     query = {"ativo": True}
+    
+    # Filtro por usuário (admin vê todos, outros só os seus)
+    if current_user != "admin":
+        query["criado_por"] = current_user
+    
     if agente_atual_id:
         # Excluir o próprio agente da lista de opções para evitar auto-herança
         if isinstance(agente_atual_id, str):
             agente_atual_id = ObjectId(agente_atual_id)
         query["_id"] = {"$ne": agente_atual_id}
+    
     return list(collection_agentes.find(query).sort("data_criacao", -1))
 
 def obter_agente(agente_id):
-    """Obtém um agente específico pelo ID"""
+    """Obtém um agente específico pelo ID com verificação de permissão"""
     if isinstance(agente_id, str):
         agente_id = ObjectId(agente_id)
-    return collection_agentes.find_one({"_id": agente_id})
+    
+    agente = collection_agentes.find_one({"_id": agente_id})
+    
+    # Verificar permissão
+    if agente and agente.get('ativo', True):
+        current_user = get_current_user()
+        if current_user == "admin" or agente.get('criado_por') == current_user:
+            return agente
+    
+    return None
 
 def atualizar_agente(agente_id, nome, system_prompt, base_conhecimento, comments, planejamento, categoria, agente_mae_id=None, herdar_elementos=None):
-    """Atualiza um agente existente"""
+    """Atualiza um agente existente com verificação de permissão"""
     if isinstance(agente_id, str):
         agente_id = ObjectId(agente_id)
+    
+    # Verificar se o usuário tem permissão para editar este agente
+    agente_existente = obter_agente(agente_id)
+    if not agente_existente:
+        raise PermissionError("Agente não encontrado ou sem permissão de edição")
+    
     return collection_agentes.update_one(
         {"_id": agente_id},
         {
@@ -385,9 +420,15 @@ def atualizar_agente(agente_id, nome, system_prompt, base_conhecimento, comments
     )
 
 def desativar_agente(agente_id):
-    """Desativa um agente (soft delete)"""
+    """Desativa um agente (soft delete) com verificação de permissão"""
     if isinstance(agente_id, str):
         agente_id = ObjectId(agente_id)
+    
+    # Verificar se o usuário tem permissão para desativar este agente
+    agente_existente = obter_agente(agente_id)
+    if not agente_existente:
+        raise PermissionError("Agente não encontrado ou sem permissão para desativar")
+    
     return collection_agentes.update_one(
         {"_id": agente_id},
         {"$set": {"ativo": False}}
@@ -557,7 +598,7 @@ if "agente_selecionado" not in st.session_state:
 if "segmentos_selecionados" not in st.session_state:
     st.session_state.segmentos_selecionados = ["system_prompt", "base_conhecimento", "comments", "planejamento"]
 
-# Carregar agentes
+# Carregar agentes (agora filtrados por usuário)
 agentes = listar_agentes()
 
 # Container para seleção de agente
@@ -579,23 +620,30 @@ with st.container():
             for categoria, agentes_cat in agentes_por_categoria.items():
                 for agente in agentes_cat:
                     agente_completo = obter_agente_com_heranca(agente['_id'])
-                    display_name = f"{agente['nome']} ({categoria})"
-                    if agente.get('agente_mae_id'):
-                        display_name += " 🔗"
-                    agente_options[display_name] = agente_completo
+                    if agente_completo:  # Só adiciona se tiver permissão
+                        display_name = f"{agente['nome']} ({categoria})"
+                        if agente.get('agente_mae_id'):
+                            display_name += " 🔗"
+                        # Adicionar indicador de proprietário se não for admin
+                        if get_current_user() != "admin" and agente.get('criado_por'):
+                            display_name += f" 👤"
+                        agente_options[display_name] = agente_completo
             
-            # Seletor de agente
-            agente_selecionado_display = st.selectbox(
-                "Selecione um agente para trabalhar:", 
-                list(agente_options.keys()),
-                key="seletor_agente_global"
-            )
-            
-            # Botão para aplicar agente
-            if st.button("🔄 Aplicar Agente", key="aplicar_agente"):
-                st.session_state.agente_selecionado = agente_options[agente_selecionado_display]
-                st.success(f"Agente '{agente_selecionado_display}' selecionado!")
-                st.rerun()
+            if agente_options:
+                # Seletor de agente
+                agente_selecionado_display = st.selectbox(
+                    "Selecione um agente para trabalhar:", 
+                    list(agente_options.keys()),
+                    key="seletor_agente_global"
+                )
+                
+                # Botão para aplicar agente
+                if st.button("🔄 Aplicar Agente", key="aplicar_agente"):
+                    st.session_state.agente_selecionado = agente_options[agente_selecionado_display]
+                    st.success(f"Agente '{agente_selecionado_display}' selecionado!")
+                    st.rerun()
+            else:
+                st.info("Nenhum agente disponível com as permissões atuais.")
         
         else:
             st.info("Nenhum agente disponível. Crie um agente primeiro na aba de Gerenciamento.")
